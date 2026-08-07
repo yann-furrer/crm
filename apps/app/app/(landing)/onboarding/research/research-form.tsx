@@ -36,9 +36,7 @@ export function ResearchForm() {
 		<form
 			onSubmit={(event) => {
 				event.preventDefault();
-
 				const form = new FormData(event.currentTarget);
-
 				save.mutate({ apiKey: String(form.get("apiKey") ?? "").trim() });
 			}}
 			className="flex flex-col gap-6"

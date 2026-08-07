@@ -15,6 +15,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useQueryState } from "nuqs";
 import { DetailSheetEmpty, SECTION_TITLE } from "@/components/detail-sheet";
 import { useTRPC } from "@/lib/trpc/client";
+import { useHydrated } from "@/lib/use-hydrated";
 import { ActivityComposer } from "./activity-composer";
 import { TimelineEntry, type TimelineEntryData } from "./timeline-entry";
 import {
@@ -83,45 +84,54 @@ const EMPTY_ICONS: Record<TimelineTab, CarbonIcon> = {
 	done: Checkmark,
 };
 
-const dayFormat = new Intl.DateTimeFormat(undefined, {
+const dayFormat = new Intl.DateTimeFormat("en-US", {
 	weekday: "short",
 	month: "short",
 	day: "numeric",
 	year: "numeric",
 });
 
-function dayLabel(at: Date): string {
-	const midnight = (date: Date) =>
-		new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+function dayLabel(day: string, local: boolean): string {
+	const now = new Date();
+	const today = dayKey(now.toISOString(), local);
+	const yesterdayDate = local
+		? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+		: new Date(Date.now() - 86_400_000);
+	const yesterday = dayKey(yesterdayDate.toISOString(), local);
 
-	const days = Math.round(
-		(midnight(new Date()) - midnight(at)) / (1000 * 60 * 60 * 24),
-	);
-
-	if (days === 0) return "Today";
-	if (days === 1) return "Yesterday";
-	return dayFormat.format(at);
+	if (day === today) return "Today";
+	if (day === yesterday) return "Yesterday";
+	return dayFormat.format(new Date(`${day}T00:00:00`));
 }
 
-function byDay(entries: TimelineEntryData[]) {
+function byDay(entries: TimelineEntryData[], local: boolean) {
 	const groups = new Map<
 		string,
 		{ day: string; label: string; entries: TimelineEntryData[] }
 	>();
 
 	for (const entry of entries) {
-		const at = new Date(entry.occurredAt ?? entry.createdAt);
-		const day = at.toDateString();
+		const day = dayKey(entry.occurredAt ?? entry.createdAt, local);
 
 		const group = groups.get(day);
 		if (group) {
 			group.entries.push(entry);
 		} else {
-			groups.set(day, { day, label: dayLabel(at), entries: [entry] });
+			groups.set(day, { day, label: dayLabel(day, local), entries: [entry] });
 		}
 	}
 
 	return [...groups.values()];
+}
+
+function dayKey(value: string, local: boolean): string {
+	if (!local) return value.slice(0, 10);
+	const date = new Date(value);
+	return [
+		date.getFullYear(),
+		String(date.getMonth() + 1).padStart(2, "0"),
+		String(date.getDate()).padStart(2, "0"),
+	].join("-");
 }
 
 function TimelineDay({
@@ -149,6 +159,7 @@ function TimelineDay({
 
 export function Timeline({ anchor }: { anchor: TimelineAnchor }) {
 	const trpc = useTRPC();
+	const hydrated = useHydrated();
 
 	const [tab, setTab] = useQueryState(TIMELINE_PARAM, timelineTabParser);
 
@@ -220,7 +231,7 @@ export function Timeline({ anchor }: { anchor: TimelineAnchor }) {
 						/>
 					) : null}
 
-					{byDay(entries).map((group) => (
+					{byDay(entries, hydrated).map((group) => (
 						<TimelineDay
 							key={group.day}
 							label={group.label}

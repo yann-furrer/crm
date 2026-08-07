@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient, signOut } from "@crm/auth/client";
+import { authClient } from "@crm/auth/client";
 import {
 	type MailboxProviderId,
 	MICROSOFT_SYNC_SCOPES,
@@ -12,6 +12,7 @@ import { Button } from "@crm/ui/components/button";
 import { Spinner } from "@crm/ui/components/spinner";
 import { useState } from "react";
 import { toast } from "sonner";
+import { signOutAndRedirect } from "@/lib/sign-out";
 
 const PROVIDERS = {
 	google: {
@@ -53,17 +54,6 @@ export function GrantAccess({
 		if (error) fail(error.message);
 	}
 
-	async function handleSignOut() {
-		const { error } = await signOut();
-
-		if (error) {
-			toast.error(error.message ?? "Could not sign out.");
-			return;
-		}
-
-		window.location.assign("/sign-in");
-	}
-
 	const single = providers.length === 1;
 
 	return (
@@ -94,7 +84,7 @@ export function GrantAccess({
 			<Button
 				className="w-full"
 				onClick={() => {
-					handleSignOut().catch(() => toast.error("Could not sign out."));
+					signOutAndRedirect().catch(() => toast.error("Could not sign out."));
 				}}
 				type="button"
 				variant="ghost"

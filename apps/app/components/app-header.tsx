@@ -5,7 +5,6 @@ import Light from "@carbon/icons-react/es/Light";
 import Logout from "@carbon/icons-react/es/Logout";
 import Menu from "@carbon/icons-react/es/Menu";
 import UserAvatar from "@carbon/icons-react/es/UserAvatar";
-import { signOut } from "@crm/auth/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@crm/ui/components/avatar";
 import { Button } from "@crm/ui/components/button";
 import {
@@ -24,24 +23,12 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useMobileNav } from "@/components/mobile-nav";
+import { signOutAndRedirect } from "@/lib/sign-out";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 type User = { name: string; email: string; image: string | null };
-
-/**
- * The workspace arrives named `CRM` until somebody types something else — the
- * deliberate placeholder — so appending the product name to it read "CRM CRM".
- * A workspace genuinely called "Acme CRM" has the same problem, which is why
- * this tests the name rather than comparing it to the default.
- */
-export function workspaceLabel(name: string | undefined): string {
-	const trimmed = name?.trim();
-
-	if (!trimmed) return "CRM";
-
-	return /\bcrm$/i.test(trimmed) ? trimmed : `${trimmed} CRM`;
-}
 
 export function AppHeader({ user }: { user: User }) {
 	const { setOpen: setMobileNavOpen } = useMobileNav();
@@ -49,17 +36,6 @@ export function AppHeader({ user }: { user: User }) {
 	const workspaceUrl = useWorkspaceUrl();
 	const workspace = useQuery(trpc.workspace.get.queryOptions());
 	const label = workspaceLabel(workspace.data?.name);
-
-	async function handleSignOut() {
-		const { error } = await signOut();
-
-		if (error) {
-			toast.error(error.message ?? "Could not sign out.");
-			return;
-		}
-
-		window.location.assign("/sign-in");
-	}
 
 	return (
 		<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 [view-transition-name:app-header]">
@@ -88,7 +64,9 @@ export function AppHeader({ user }: { user: User }) {
 				<UserMenu
 					user={user}
 					onSignOut={() => {
-						handleSignOut().catch(() => toast.error("Could not sign out."));
+						signOutAndRedirect().catch(() =>
+							toast.error("Could not sign out."),
+						);
 					}}
 				/>
 			</div>
