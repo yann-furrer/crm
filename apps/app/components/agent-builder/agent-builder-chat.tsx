@@ -23,7 +23,6 @@ import { Button } from "@crm/ui/components/button";
 import { Icon } from "@crm/ui/components/icon";
 import { Markdown } from "@crm/ui/components/markdown";
 import { Reasoning } from "@crm/ui/components/reasoning";
-import { Skeleton } from "@crm/ui/components/skeleton";
 import { useMountEffect } from "@crm/ui/hooks/use-mount-effect";
 import { cn } from "@crm/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -66,6 +65,7 @@ import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 import { AgentCodeWorkspace } from "./agent-code-workspace";
 import { AgentComposer, type BuilderPrompt } from "./agent-composer";
+import { AgentScopeBadges } from "./agent-scope-badges";
 import {
 	ChatAttachmentChip,
 	ChatCommandChip,
@@ -96,8 +96,10 @@ type BuilderSubmission = {
 
 export function AgentBuilderChat({
 	conversationId,
+	initialData,
 }: {
 	conversationId: string;
+	initialData: Conversation | SharedConversation | null;
 }) {
 	const trpc = useTRPC();
 	const queryClient = useQueryClient();
@@ -109,6 +111,7 @@ export function AgentBuilderChat({
 	const conversation = useQuery({
 		...trpc.conversations.builderById.queryOptions({ id: conversationId }),
 		enabled: !sharedChat,
+		initialData: sharedChat ? undefined : (initialData as Conversation),
 		refetchInterval: (query) => {
 			const data = query.state.data;
 			return data && builderConversationNeedsPolling(data) ? 2500 : false;
@@ -117,6 +120,10 @@ export function AgentBuilderChat({
 	const shared = useQuery({
 		...trpc.conversations.shared.queryOptions({ token: conversationId }),
 		enabled: sharedChat,
+		initialData:
+			sharedChat && initialData
+				? (initialData as SharedConversation)
+				: undefined,
 		refetchInterval: (query) =>
 			sharedConversationNeedsPolling(query.state.data) ? 5000 : false,
 	});
@@ -175,23 +182,26 @@ export function AgentBuilderChat({
 		}),
 	);
 
-	if (sharedChat && shared.isPending) {
-		return <ChatLoading />;
-	}
-
 	if (sharedChat) {
-		if (shared.data) return <SharedAgentChat conversation={shared.data} />;
-
-		return <ChatUnavailable shared />;
+		if (shared.isPending) {
+			return (
+				<main
+					className="flex flex-1 items-center justify-center p-8"
+					aria-busy="true"
+				>
+					<span className="text-muted-foreground text-sm">Opening chat…</span>
+				</main>
+			);
+		}
+		if (shared.isError || !shared.data) return <ChatUnavailable />;
+		return <SharedAgentChat conversation={shared.data} />;
 	}
 
-	if (conversation.isPending) return <ChatLoading />;
-
-	if (conversation.isError) {
+	if (conversation.isError && !conversation.data) {
 		return <ChatUnavailable />;
 	}
 
-	const data = conversation.data;
+	const data = conversation.data ?? (initialData as Conversation);
 	const submissions = data.submissions as BuilderSubmission[];
 	const persistedEvents = (events.data ??
 		[]) as unknown as MessageStreamEvent[];
@@ -1064,8 +1074,7 @@ function ReviewAgentCard({
 	return (
 		<div className="flex flex-col gap-5">
 			<p className="max-w-[640px] text-pretty text-sm leading-5">
-				I’ve drafted the agent. Review its details while it stays private to
-				you.
+				Your private draft is ready to review.
 			</p>
 			<div className="overflow-hidden rounded-lg border bg-card">
 				<div className="border-b px-4 py-3 sm:px-5 sm:py-4">
@@ -1081,16 +1090,19 @@ function ReviewAgentCard({
 				<ReviewRow label="Trigger" value={manifest.trigger} />
 				<ReviewRow label="Looks at" value={manifest.looksAt} />
 				<ReviewRow label="Action" value={manifest.action} />
-				<ReviewRow label="Access" value={manifest.access} />
+				<ReviewRow label="Access">
+					<AgentScopeBadges
+						scopes={manifest.access}
+						fallback="Bounded CRM read access"
+					/>
+				</ReviewRow>
 				<p className="border-t px-4 py-2 text-pretty text-muted-foreground text-xs sm:px-5">
-					The sandbox has no network access. CRM and connected data are
-					available only through the listed tools, and credentials stay in the
-					app runtime.
+					Runs in an isolated sandbox. CRM access is limited to the scopes
+					above, and credentials never enter the sandbox.
 				</p>
 				<div className="flex min-h-14 flex-col items-stretch gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5">
 					<p className="text-pretty text-muted-foreground text-xs">
-						Inspect this version, scope, and its listed actions before making it
-						available to the team.
+						Review the draft before sharing it with your team.
 					</p>
 					<div className="sm:shrink-0">
 						<Button asChild>
@@ -1109,15 +1121,23 @@ function ReviewAgentCard({
 	);
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function ReviewRow({
+	label,
+	value,
+	children,
+}: {
+	label: string;
+	value?: string;
+	children?: ReactNode;
+}) {
 	return (
 		<div className="flex min-h-8 flex-col items-start gap-0.5 border-b px-4 py-2 last:border-b-0 sm:flex-row sm:items-center sm:gap-4 sm:px-5 sm:py-1.5">
 			<span className="text-muted-foreground text-xs sm:w-[104px] sm:shrink-0">
 				{label}
 			</span>
-			<span className="min-w-0 flex-1 wrap-break-word font-medium text-sm">
-				{value}
-			</span>
+			<div className="min-w-0 flex-1 wrap-break-word font-medium text-sm">
+				{children ?? value}
+			</div>
 		</div>
 	);
 }
@@ -1286,30 +1306,7 @@ function DeployedStat({
 	);
 }
 
-function ChatLoading() {
-	return (
-		<main className="flex min-h-0 flex-1 flex-col" aria-busy="true">
-			<header className="flex h-12 shrink-0 items-center border-b px-5">
-				<Skeleton className="h-4 w-40" />
-			</header>
-			<div className="min-h-0 flex-1 overflow-hidden">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-9">
-					<Skeleton className="ml-auto h-16 w-2/3 max-w-[520px]" />
-					<div className="flex max-w-[640px] flex-col gap-2">
-						<Skeleton className="h-4 w-full" />
-						<Skeleton className="h-4 w-11/12" />
-						<Skeleton className="h-4 w-8/12" />
-					</div>
-				</div>
-			</div>
-			<span role="status" className="sr-only">
-				Loading chat…
-			</span>
-		</main>
-	);
-}
-
-function ChatUnavailable({ shared = false }: { shared?: boolean }) {
+function ChatUnavailable() {
 	const workspaceUrl = useWorkspaceUrl();
 
 	return (
@@ -1317,9 +1314,7 @@ function ChatUnavailable({ shared = false }: { shared?: boolean }) {
 			<div className="max-w-md text-center">
 				<h1 className="font-medium text-lg">Chat unavailable</h1>
 				<p className="mt-2 text-muted-foreground text-sm">
-					{shared
-						? "This shared chat no longer exists or is not available."
-						: "This chat does not exist or you do not have access to it."}
+					This chat does not exist or you do not have access to it.
 				</p>
 				<Button asChild variant="outline" className="mt-5">
 					<Link href={workspaceUrl("/chat")}>Start a new chat</Link>
@@ -1436,11 +1431,21 @@ function manifestOf(value: unknown) {
 			typeof manifest.description === "string" && manifest.description.trim()
 				? manifest.description.trim()
 				: null,
-		trigger: textOf(trigger.summary, "Manual or configured schedule"),
+		trigger:
+			trigger.type === "MANUAL"
+				? "On demand"
+				: compactSummary(trigger.summary, "On schedule"),
 		looksAt: textOf(dataScope.summary, "CRM records in the approved scope"),
-		action: textOf(actions[0]?.summary, "Perform the requested team action"),
-		access: access.length > 0 ? access.join(" · ") : "Bounded CRM read access",
+		action: compactSummary(
+			actions[0]?.summary,
+			"Perform the requested team action",
+		),
+		access,
 	};
+}
+
+function compactSummary(value: unknown, fallback: string): string {
+	return textOf(value, fallback).replace(/\s+\([^()]+\)\s*\.?$/, "");
 }
 
 function recordOf(value: unknown): Record<string, unknown> {
