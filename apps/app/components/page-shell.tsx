@@ -1,3 +1,4 @@
+import { Skeleton } from "@crm/ui/components/skeleton";
 import { Spinner } from "@crm/ui/components/spinner";
 import { cn } from "@crm/ui/lib/utils";
 import type * as React from "react";
@@ -129,11 +130,33 @@ function PageShellLoading() {
 	);
 }
 
+function PageShellFallback() {
+	return (
+		<PageShell aria-busy="true">
+			<div className="flex flex-col gap-6" aria-hidden="true">
+				<div className="flex flex-col gap-3">
+					<Skeleton className="h-8 w-48 max-w-full" />
+					<Skeleton className="h-4 w-72 max-w-full" />
+				</div>
+				<div className="flex flex-col gap-3">
+					<Skeleton className="h-14 w-full rounded-lg" />
+					<Skeleton className="h-14 w-full rounded-lg" />
+					<Skeleton className="h-40 w-full rounded-lg" />
+				</div>
+			</div>
+			<span role="status" className="sr-only">
+				Loading page…
+			</span>
+		</PageShell>
+	);
+}
+
 export {
 	PageShell,
 	PageShellActions,
 	PageShellContent,
 	PageShellDescription,
+	PageShellFallback,
 	PageShellHeader,
 	PageShellHeading,
 	PageShellLoading,

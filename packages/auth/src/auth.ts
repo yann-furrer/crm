@@ -54,6 +54,7 @@ if (env.microsoft) {
 
 export const auth = betterAuth({
 	appName: "CRM",
+	baseURL: env.apiUrl,
 
 	database: prismaAdapter(db, {
 		provider: "postgresql",

@@ -9,12 +9,14 @@
 		"./blob": "./src/blob.ts",
 		"./client": "./src/client.ts",
 		"./currency": "./src/currency.ts",
+		"./deal-stage": "./src/deal-stage.ts",
 		"./enums": "./src/generated/prisma/enums.ts",
 		"./favicon": "./src/favicon.ts",
 		"./fields": "./src/fields.ts",
 		"./fields-shape": "./src/fields-shape.ts",
 		"./fx": "./src/fx.ts",
 		"./images": "./src/images.ts",
+		"./idempotency": "./src/idempotency.ts",
 		"./safe-fetch": "./src/safe-fetch.ts",
 		"./settings": "./src/settings.ts",
 		"./workspace": "./src/workspace.ts"
@@ -30,7 +32,7 @@
 		"db:seed": "bun scripts/require-local-db.ts db:seed && prisma db seed",
 		"db:studio": "prisma studio",
 		"test": "bun test",
-		"dev": "prisma generate --watch",
+		"dev:prepare": "bun scripts/prepare-dev.ts",
 		"lint": "biome check .",
 		"postinstall": "prisma generate",
 		"clean": "rm -rf .turbo node_modules src/generated"
