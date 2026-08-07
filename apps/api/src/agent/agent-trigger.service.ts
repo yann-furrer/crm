@@ -1,4 +1,4 @@
-import type { Db } from "@crm/db";
+import type { Db, FieldEntity } from "@crm/db";
 import { PRIORITY } from "@crm/db/agent-tasks";
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
@@ -68,6 +68,56 @@ export class AgentTriggerService {
 			priority: PRIORITY.identify,
 			budget: 4,
 		});
+	}
+
+	async fieldBackfill(
+		entity: FieldEntity,
+		key: string,
+		reason: string,
+	): Promise<void> {
+		const subject = `${entity.toLowerCase()}.${key}`;
+
+		try {
+			const pending = await this.db.agentTask.findFirst({
+				where: {
+					kind: "field-backfill",
+					finishedAt: null,
+					reason: { startsWith: `${subject}: ` },
+				},
+				select: { id: true },
+			});
+
+			if (pending) return;
+
+			await this.db.agentTask.create({
+				data: {
+					kind: "field-backfill",
+					reason: `${subject}: ${reason}`,
+					priority: PRIORITY.fieldBackfill,
+					budget: 8,
+					dueAt: new Date(),
+				},
+			});
+
+			this.logger.log({
+				message: "Agent task queued",
+				kind: "field-backfill",
+				entity,
+				key,
+			});
+
+			this.poke();
+		} catch (error) {
+			this.logger.error(
+				{
+					message: "Could not queue agent task",
+					kind: "field-backfill",
+					entity,
+					key,
+				},
+				error instanceof Error ? error.stack : String(error),
+			);
+		}
 	}
 
 	async meetingSoon(contactId: string, when: Date): Promise<void> {

@@ -120,7 +120,7 @@ Each is only whether the key is set. `cap_context_dev` is whether an `AppSetting
 | `recheck_interval_days` | Their intervals, in day bands |
 | `agent_conversations` | How many `AgentConversation` rows exist |
 
-Tool names are matched against the twenty tools in `apps/agent/agent/tools/` and eve's own
+Tool names are matched against the twenty-four tools in `apps/agent/agent/tools/` and eve's own
 builtins. Anything else is counted as `other`. Task kinds are matched against `TASK_KINDS`.
 
 Tool counts are read from the `agentEvent` rows the audit hook already writes — the event `type`
@@ -206,9 +206,14 @@ our errors would carry contact fields.
 | Event | Properties |
 | --- | --- |
 | `agent_error` | `error_class`, `tool`, `task_kind`, `error_source` (`tool` / `turn` / `session`) |
-| `sync_error` | `error_class`, `sync_source` (`gmail` / `calendar`) |
+| `sync_error` | `error_class`, `sync_source` (`gmail` / `calendar` / `outlook`), `error_source` (`google_sync` / `microsoft_sync` / `mailbox_sync`) |
 | `api_error` | `error_class`, `route`, `status_code` |
 | `model_error` | `error_class`, `model_id` |
+
+`sync_error`'s `error_source` is derived from `sync_source` rather than passed in, so one
+mailbox pipeline that dispatches to both providers cannot report an Outlook failure as a Google
+one. A source that is not one of the three is sent as `other`, and its `error_source` as
+`mailbox_sync`.
 
 `route` is the **route pattern** — `/internal/sync/google`, `/trpc/contacts.list` — never a URL
 with parameters in it. Anything that does not match a strict path shape is sent as `other`, and

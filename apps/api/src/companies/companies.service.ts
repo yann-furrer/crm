@@ -18,10 +18,12 @@ import {
 	ActivityStampService,
 	type StampTargets,
 } from "../crm/activity-stamp.service";
+import { type BulkResult, requireOwner, runBulk } from "../crm/bulk";
 import { blankToNull, toCents } from "../crm/values";
 import { ConversionService } from "../currency/conversion.service";
 import { InjectDatabase } from "../database/database.constants";
 import { OPEN_DEAL_STAGES } from "../deals/deal-stage";
+import { FieldsService } from "../fields/fields.service";
 import {
 	countsByKey,
 	FACET_ALL,
@@ -32,6 +34,7 @@ import {
 	resolveOrderBy,
 } from "../trpc/list-input";
 import type {
+	CompanyBulkOwnerInput,
 	CompanyCreateInput,
 	CompanyListInput,
 	CompanyUpdateInput,
@@ -69,6 +72,7 @@ export type CompanyRow = {
 	openDealCount: number;
 	lastActivityAt: string | null;
 	createdAt: string;
+	fields: Record<string, string | number | boolean | null>;
 };
 
 const SORTABLE: Record<
@@ -96,6 +100,7 @@ export class CompaniesService {
 		private readonly favicon: FaviconService,
 		private readonly stamp: ActivityStampService,
 		private readonly conversion: ConversionService,
+		private readonly fields: FieldsService,
 	) {}
 
 	async list(input: CompanyListInput): Promise<ListResult<CompanyRow>> {
@@ -137,7 +142,11 @@ export class CompaniesService {
 			this.facetCounts(input),
 		]);
 
-		const queued = await this.queue.queuedCompanies(rows.map((row) => row.id));
+		const ids = rows.map((row) => row.id);
+		const [queued, tableFields] = await Promise.all([
+			this.queue.queuedCompanies(ids),
+			this.fields.tableValuesFor("COMPANY", ids),
+		]);
 
 		return {
 			rows: rows.map((row) => ({
@@ -158,6 +167,7 @@ export class CompaniesService {
 				openDealCount: row._count.deals,
 				lastActivityAt: row.lastActivityAt?.toISOString() ?? null,
 				createdAt: row.createdAt.toISOString(),
+				fields: tableFields.get(row.id) ?? {},
 			})),
 			total,
 			facetCounts,
@@ -244,6 +254,7 @@ export class CompaniesService {
 
 		return {
 			...rest,
+			fields: await this.fields.valuesFor("COMPANY", id),
 			queued: await this.queue.isQueued({ companyId: id }),
 			createdAt: createdAt.toISOString(),
 			enrichedAt: enrichedAt?.toISOString() ?? null,
@@ -356,10 +367,16 @@ export class CompaniesService {
 		}
 
 		try {
-			const updated = await this.db.company.update({
-				where: { id },
-				data,
-				select: { id: true, name: true, domain: true },
+			const updated = await this.db.$transaction(async (tx) => {
+				if (input.fields) {
+					await this.fields.applyValues(tx, "COMPANY", id, input.fields);
+				}
+
+				return tx.company.update({
+					where: { id },
+					data,
+					select: { id: true, name: true, domain: true },
+				});
 			});
 
 			if (data.enrichmentStatus === "PENDING") {
@@ -408,6 +425,39 @@ export class CompaniesService {
 		});
 
 		return { id, name: deleted.name };
+	}
+
+	async bulkAssignOwner(input: CompanyBulkOwnerInput): Promise<BulkResult> {
+		const ownerId = input.ownerId || null;
+
+		await requireOwner(this.db, ownerId);
+
+		const ids = [...new Set(input.ids)];
+		const { count } = await this.db.company.updateMany({
+			where: { id: { in: ids } },
+			data: { ownerId },
+		});
+
+		this.logger.log({
+			message: "Companies reassigned",
+			count,
+			ownerId,
+		});
+
+		return {
+			requested: ids.length,
+			succeeded: count,
+			failed: ids.length - count,
+			message: null,
+		};
+	}
+
+	async bulkEnrich(ids: string[]): Promise<BulkResult> {
+		return runBulk(ids, (id) => this.enrich(id));
+	}
+
+	async bulkDelete(ids: string[]): Promise<BulkResult> {
+		return runBulk(ids, (id) => this.delete(id));
 	}
 
 	async enrich(id: string): Promise<{ id: string; queued: boolean }> {

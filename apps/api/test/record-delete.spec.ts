@@ -9,7 +9,8 @@ import { ContactsService } from "../src/contacts/contacts.service";
 import { ActivityStampService } from "../src/crm/activity-stamp.service";
 import { EnrichmentLogService } from "../src/crm/enrichment-log.service";
 import { ConversionService } from "../src/currency/conversion.service";
-import { GoogleMatchService } from "../src/google/google-match.service";
+import { FieldsService } from "../src/fields/fields.service";
+import { MailboxMatchService } from "../src/mailbox/mailbox-match.service";
 
 const suffix = process.env.TEST_RUN_ID ?? "record-delete-spec";
 const domain = `delete-${suffix}.test`;
@@ -33,7 +34,15 @@ const log = new EnrichmentLogService(db, stamp);
 const queue = new AgentQueueService(db);
 const conversion = new ConversionService(db);
 
-const contacts = new ContactsService(db, directory, agent, queue, stamp);
+const fields = new FieldsService(db, agent);
+const contacts = new ContactsService(
+	db,
+	directory,
+	agent,
+	queue,
+	stamp,
+	fields,
+);
 const companies = new CompaniesService(
 	db,
 	agent,
@@ -41,8 +50,9 @@ const companies = new CompaniesService(
 	{ backfill: async () => undefined } as unknown as FaviconService,
 	stamp,
 	conversion,
+	fields,
 );
-const match = new GoogleMatchService(db, directory, agent, log);
+const match = new MailboxMatchService(db, directory, agent, log);
 
 async function matchContext() {
 	const internal = await match.internalIdentity();

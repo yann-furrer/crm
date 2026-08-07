@@ -3,6 +3,7 @@
 import Email from "@carbon/icons-react/es/Email";
 import Partnership from "@carbon/icons-react/es/Partnership";
 import Star from "@carbon/icons-react/es/Star";
+import type { FieldValueJson } from "@crm/db/fields";
 import {
 	Accordion,
 	AccordionContent,
@@ -35,10 +36,12 @@ import {
 	factsByField,
 	provenanceFor,
 } from "@/components/crm/facts";
+import { FieldsCog, RecordFields } from "@/components/crm/fields/record-fields";
 import {
 	InlineField,
 	InlineSelectField,
 	savingField,
+	savingValue,
 } from "@/components/crm/inline-field";
 import { OwnerCell } from "@/components/crm/owner-cell";
 import { ContactSocials, hasContactLinks } from "@/components/crm/social-links";
@@ -305,6 +308,11 @@ function ContactOverview({ contact }: { contact: Contact }) {
 		}),
 	);
 
+	const saveFields = (fields: Record<string, FieldValueJson>) =>
+		update.mutate({ id: contact.id, data: { fields } });
+
+	const isSavingField = savingValue(update);
+
 	const save = (data: Record<string, string | null>) =>
 		update.mutate({ id: contact.id, data });
 
@@ -312,7 +320,7 @@ function ContactOverview({ contact }: { contact: Contact }) {
 
 	return (
 		<DetailSheetBody>
-			<DetailSheetSection title="Details">
+			<DetailSheetSection title="Details" action={<FieldsCog kind="contact" />}>
 				<DetailSheetProperties>
 					<InlineField
 						label="First name"
@@ -399,6 +407,11 @@ function ContactOverview({ contact }: { contact: Contact }) {
 						onSave={(ownerId) =>
 							save({ ownerId: ownerId === NONE ? null : ownerId })
 						}
+					/>
+					<RecordFields
+						fields={contact.fields}
+						saving={isSavingField}
+						onSave={saveFields}
 					/>
 				</DetailSheetProperties>
 			</DetailSheetSection>
