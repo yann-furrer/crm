@@ -87,6 +87,7 @@
 			"dependsOn": ["topo", "^build"]
 		},
 		"dev": {
+			"dependsOn": ["^dev:prepare"],
 			"cache": false,
 			"persistent": true
 		}
