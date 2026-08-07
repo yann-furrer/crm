@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/trycompai/crm/compare/v1.1.0...v1.2.0) (2026-08-07)
+
+
+### Features
+
+* **api:** add microsoft sign-in and outlook mailbox sync ([#73](https://github.com/trycompai/crm/issues/73)) ([2a0062f](https://github.com/trycompai/crm/commit/2a0062fb76ffdaa5bbbb3848a5573b8b53cd0036))
+
 ## [1.1.0](https://github.com/trycompai/crm/compare/v1.0.0...v1.1.0) (2026-08-06)
 
 
