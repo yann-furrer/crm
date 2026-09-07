@@ -4,9 +4,10 @@ import Add from "@carbon/icons-react/es/Add";
 import Application from "@carbon/icons-react/es/Application";
 import ArrowRight from "@carbon/icons-react/es/ArrowRight";
 import Building from "@carbon/icons-react/es/Building";
+import CarFront from "@carbon/icons-react/es/CarFront";
 import Checkmark from "@carbon/icons-react/es/Checkmark";
 import Copy from "@carbon/icons-react/es/Copy";
-import Partnership from "@carbon/icons-react/es/Partnership";
+import DocumentSigned from "@carbon/icons-react/es/DocumentSigned";
 import Play from "@carbon/icons-react/es/Play";
 import Renew from "@carbon/icons-react/es/Renew";
 import Reply from "@carbon/icons-react/es/Reply";
@@ -1367,7 +1368,8 @@ const RESOURCE_ICONS = {
 	integration: Application,
 	company: Building,
 	contact: User,
-	deal: Partnership,
+	vehicle: CarFront,
+	rentalContract: DocumentSigned,
 } as const;
 
 function builderMessageOf(message: unknown) {

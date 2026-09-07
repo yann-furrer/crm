@@ -1,8 +1,8 @@
-import { DealStage, db } from "@crm/db";
-import { LOSING_DEAL_STAGES, OPEN_DEAL_STAGES } from "@crm/db/deal-stage";
+import { db, RentalContractStatus } from "@crm/db";
+import { OPEN_RENTAL_STATUSES } from "@crm/db/rental-status";
 import { domainOf, normalise } from "./names";
 
-export type RecordKind = "contact" | "company" | "deal";
+export type RecordKind = "contact" | "company" | "rentalContract";
 
 export type ContactHit = {
 	kind: "contact";
@@ -21,42 +21,47 @@ export type CompanyHit = {
 	domain: string | null;
 	industry: string | null;
 	contacts: number;
-	deals: number;
 };
 
-export type DealHit = {
-	kind: "deal";
+export type RentalContractHit = {
+	kind: "rentalContract";
 	id: string;
-	name: string;
-	stage: string;
-	amount: number | null;
+	vehicle: string;
+	status: string;
+	totalAmount: number | null;
 	currency: string;
-	company: { id: string; name: string };
+	contact: { id: string; name: string };
 };
 
-export type SearchHit = ContactHit | CompanyHit | DealHit;
+export type SearchHit = ContactHit | CompanyHit | RentalContractHit;
 
 export type SearchResult = {
 	query: string;
 	contacts: ContactHit[];
 	companies: CompanyHit[];
-	deals: DealHit[];
+	rentalContracts: RentalContractHit[];
 	total: number;
 };
 
-export type DealListStatus = "open" | "won" | "lost" | "all";
+export type RentalContractListStatus =
+	| "open"
+	| "completed"
+	| "cancelled"
+	| "all";
 
-export type DealListOptions = {
-	status?: DealListStatus;
+export type RentalContractListOptions = {
+	status?: RentalContractListStatus;
 	inactiveForDays?: number;
-	companyId?: string;
+	vehicleId?: string;
 	ownerId?: string;
 	limit?: number;
 	cursor?: string;
 	now?: Date;
 };
 
-export async function listDeals(options: DealListOptions = {}) {
+export async function listRentalContracts(
+	options: RentalContractListOptions = {},
+) {
 	const status = options.status ?? "open";
 	const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
 	const now = options.now ?? new Date();
@@ -66,19 +71,19 @@ export async function listDeals(options: DealListOptions = {}) {
 			: new Date(
 					now.getTime() - Math.max(options.inactiveForDays, 0) * 86_400_000,
 				);
-	const stages =
+	const statuses =
 		status === "open"
-			? [...OPEN_DEAL_STAGES]
-			: status === "won"
-				? [DealStage.CLOSED_WON]
-				: status === "lost"
-					? [...LOSING_DEAL_STAGES]
+			? [...OPEN_RENTAL_STATUSES]
+			: status === "completed"
+				? [RentalContractStatus.COMPLETED]
+				: status === "cancelled"
+					? [RentalContractStatus.CANCELLED]
 					: null;
 
-	const rows = await db.deal.findMany({
+	const rows = await db.rentalContract.findMany({
 		where: {
-			...(stages ? { stage: { in: stages } } : {}),
-			...(options.companyId ? { companyId: options.companyId } : {}),
+			...(statuses ? { status: { in: statuses } } : {}),
+			...(options.vehicleId ? { vehicleId: options.vehicleId } : {}),
 			...(options.ownerId ? { ownerId: options.ownerId } : {}),
 			...(cutoff
 				? {
@@ -98,24 +103,17 @@ export async function listDeals(options: DealListOptions = {}) {
 		take: limit + 1,
 		select: {
 			id: true,
-			name: true,
-			stage: true,
-			amount: true,
+			status: true,
+			totalAmount: true,
 			currency: true,
 			createdAt: true,
 			lastActivityAt: true,
-			expectedCloseDate: true,
-			company: {
-				select: {
-					id: true,
-					name: true,
-					domain: true,
-					iconUrl: true,
-					iconDarkUrl: true,
-					iconTone: true,
-					logoUrl: true,
-				},
+			startDate: true,
+			endDate: true,
+			vehicle: {
+				select: { id: true, make: true, model: true, plateNumber: true },
 			},
+			contact: { select: { id: true, firstName: true, lastName: true } },
 			owner: { select: { id: true, name: true, email: true, image: true } },
 		},
 	});
@@ -126,28 +124,35 @@ export async function listDeals(options: DealListOptions = {}) {
 		criteria: {
 			status,
 			inactiveForDays: options.inactiveForDays ?? null,
-			companyId: options.companyId ?? null,
+			vehicleId: options.vehicleId ?? null,
 			ownerId: options.ownerId ?? null,
 		},
 		asOf: now.toISOString(),
-		deals: page.map((deal) => {
-			const activityDate = deal.lastActivityAt ?? deal.createdAt;
+		rentalContracts: page.map((contract) => {
+			const activityDate = contract.lastActivityAt ?? contract.createdAt;
 			return {
-				id: deal.id,
-				name: deal.name,
-				stage: deal.stage,
-				amount: deal.amount === null ? null : Number(deal.amount),
-				currency: deal.currency,
-				company: deal.company,
-				owner: deal.owner,
-				createdAt: deal.createdAt.toISOString(),
-				lastActivityAt: deal.lastActivityAt?.toISOString() ?? null,
+				id: contract.id,
+				vehicle: `${contract.vehicle.make} ${contract.vehicle.model} (${contract.vehicle.plateNumber})`,
+				status: contract.status,
+				totalAmount:
+					contract.totalAmount === null ? null : Number(contract.totalAmount),
+				currency: contract.currency,
+				contact: {
+					id: contract.contact.id,
+					name: [contract.contact.firstName, contract.contact.lastName]
+						.filter(Boolean)
+						.join(" "),
+				},
+				owner: contract.owner,
+				createdAt: contract.createdAt.toISOString(),
+				lastActivityAt: contract.lastActivityAt?.toISOString() ?? null,
 				daysSinceLastActivity: Math.max(
 					0,
 					Math.floor((now.getTime() - activityDate.getTime()) / 86_400_000),
 				),
-				neverActive: deal.lastActivityAt === null,
-				expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
+				neverActive: contract.lastActivityAt === null,
+				startDate: contract.startDate.toISOString(),
+				endDate: contract.endDate.toISOString(),
 			};
 		}),
 		hasMore,
@@ -160,11 +165,17 @@ export async function searchCrm(
 	options: { kinds?: RecordKind[]; limit?: number } = {},
 ): Promise<SearchResult> {
 	const term = query.trim();
-	const kinds = options.kinds ?? ["contact", "company", "deal"];
+	const kinds = options.kinds ?? ["contact", "company", "rentalContract"];
 	const limit = options.limit ?? 10;
 
 	if (term.length < 2) {
-		return { query: term, contacts: [], companies: [], deals: [], total: 0 };
+		return {
+			query: term,
+			contacts: [],
+			companies: [],
+			rentalContracts: [],
+			total: 0,
+		};
 	}
 
 	const wants = (kind: RecordKind) => kinds.includes(kind);
@@ -172,18 +183,18 @@ export async function searchCrm(
 	const domain = email ? domainOf(email) : bareDomain(term);
 	const words = term.split(/\s+/).filter((word) => word.length >= 2);
 
-	const [contacts, companies, deals] = await Promise.all([
+	const [contacts, companies, rentalContracts] = await Promise.all([
 		wants("contact") ? searchContacts(term, words, email, limit) : [],
 		wants("company") ? searchCompanies(term, words, domain, limit) : [],
-		wants("deal") ? searchDeals(term, words, limit) : [],
+		wants("rentalContract") ? searchRentalContracts(term, words, limit) : [],
 	]);
 
 	return {
 		query: term,
 		contacts,
 		companies,
-		deals,
-		total: contacts.length + companies.length + deals.length,
+		rentalContracts,
+		total: contacts.length + companies.length + rentalContracts.length,
 	};
 }
 
@@ -268,7 +279,7 @@ async function searchCompanies(
 			name: true,
 			domain: true,
 			industry: true,
-			_count: { select: { contacts: true, deals: true } },
+			_count: { select: { contacts: true } },
 		},
 	});
 
@@ -282,7 +293,6 @@ async function searchCompanies(
 				domain: row.domain,
 				industry: row.industry,
 				contacts: row._count.contacts,
-				deals: row._count.deals,
 			},
 		}))
 		.sort((a, b) => b.score - a.score)
@@ -290,46 +300,59 @@ async function searchCompanies(
 		.map((row) => row.hit);
 }
 
-async function searchDeals(
+async function searchRentalContracts(
 	term: string,
 	words: string[],
 	limit: number,
-): Promise<DealHit[]> {
-	const rows = await db.deal.findMany({
+): Promise<RentalContractHit[]> {
+	const rows = await db.rentalContract.findMany({
 		where: {
 			OR: [
-				{ name: { contains: term, mode: "insensitive" } },
+				{ vehicle: { plateNumber: { contains: term, mode: "insensitive" } } },
+				{ vehicle: { make: { contains: term, mode: "insensitive" } } },
+				{ vehicle: { model: { contains: term, mode: "insensitive" } } },
 				...words.map((word) => ({
-					name: { contains: word, mode: "insensitive" as const },
+					contact: {
+						OR: [
+							{ firstName: { contains: word, mode: "insensitive" as const } },
+							{ lastName: { contains: word, mode: "insensitive" as const } },
+						],
+					},
 				})),
-				{ company: { name: { contains: term, mode: "insensitive" } } },
 			],
 		},
 		orderBy: [{ lastActivityAt: "desc" }, { createdAt: "desc" }],
 		take: limit * 3,
 		select: {
 			id: true,
-			name: true,
-			stage: true,
-			amount: true,
+			status: true,
+			totalAmount: true,
 			currency: true,
-			company: { select: { id: true, name: true } },
+			vehicle: { select: { make: true, model: true, plateNumber: true } },
+			contact: { select: { id: true, firstName: true, lastName: true } },
 		},
 	});
 
 	return rows
-		.map((row) => ({
-			score: score(term, [row.name, row.company.name]),
-			hit: {
-				kind: "deal" as const,
-				id: row.id,
-				name: row.name,
-				stage: row.stage,
-				amount: row.amount === null ? null : Number(row.amount),
-				currency: row.currency,
-				company: row.company,
-			},
-		}))
+		.map((row) => {
+			const vehicleLabel = `${row.vehicle.make} ${row.vehicle.model} ${row.vehicle.plateNumber}`;
+			const contactName = [row.contact.firstName, row.contact.lastName]
+				.filter(Boolean)
+				.join(" ");
+			return {
+				score: score(term, [vehicleLabel, contactName]),
+				hit: {
+					kind: "rentalContract" as const,
+					id: row.id,
+					vehicle: vehicleLabel,
+					status: row.status,
+					totalAmount:
+						row.totalAmount === null ? null : Number(row.totalAmount),
+					currency: row.currency,
+					contact: { id: row.contact.id, name: contactName },
+				},
+			};
+		})
 		.sort((a, b) => b.score - a.score)
 		.slice(0, limit)
 		.map((row) => row.hit);

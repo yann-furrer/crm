@@ -10,7 +10,7 @@ import { FaviconService } from "../companies/favicon.service";
 import { InjectDatabase } from "../database/database.constants";
 import { ImageMirrorService } from "./image-mirror.service";
 
-export type BackfillScope = "companies" | "contacts" | "deals";
+export type BackfillScope = "companies" | "contacts";
 
 export type BackfillResult = {
 	queued: number;
@@ -70,7 +70,7 @@ export class BackfillService implements OnModuleInit {
 			try {
 				await this.sweepWorkspace();
 
-				const companies = await this.runCompanies(false);
+				const companies = await this.runCompanies();
 				const contacts = await this.runContacts();
 
 				const mirrored = await this.images.sweep();
@@ -117,29 +117,25 @@ export class BackfillService implements OnModuleInit {
 	async run(scope: BackfillScope): Promise<BackfillResult> {
 		if (scope === "contacts") return this.runContacts();
 
-		return this.runCompanies(scope === "deals");
+		return this.runCompanies();
 	}
 
-	private async runCompanies(dealsOnly: boolean): Promise<BackfillResult> {
-		const onDeals: Prisma.CompanyWhereInput = dealsOnly
-			? { deals: { some: {} } }
-			: {};
-
+	private async runCompanies(): Promise<BackfillResult> {
 		const needsBrand = this.companiesNeedingBrand();
 		const needsArtwork = await this.companiesNeedingArtwork();
 
 		const [total, rows, artworkRows] = await Promise.all([
 			this.db.company.count({
-				where: { ...onDeals, OR: [needsBrand, needsArtwork] },
+				where: { OR: [needsBrand, needsArtwork] },
 			}),
 			this.db.company.findMany({
-				where: { ...needsBrand, ...onDeals },
+				where: needsBrand,
 				orderBy: { createdAt: "asc" },
 				take: MAX_PER_RUN,
 				select: { id: true },
 			}),
 			this.db.company.findMany({
-				where: { ...needsArtwork, ...onDeals },
+				where: needsArtwork,
 				orderBy: { createdAt: "asc" },
 				take: MAX_PER_RUN,
 				select: { id: true },
@@ -172,7 +168,7 @@ export class BackfillService implements OnModuleInit {
 			alreadyQueued: brand.alreadyQueued + profile.alreadyQueued,
 		};
 
-		const iconsResolving = dealsOnly ? 0 : await this.sweepFavicons();
+		const iconsResolving = await this.sweepFavicons();
 
 		return {
 			...queued,

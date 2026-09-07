@@ -48,8 +48,8 @@ asks for workspace-wide CRM access. Never treat an empty selected scope as
 workspace access.
 
 The `save_agent_draft` resource contract is exact. Copy only tagged companies,
-contacts, and deals from `inspect_context` into `resources`, preserving each
-kind, id, and label byte for byte. Put read-only sources in `integrations` using
+contacts, vehicles, and rental contracts from `inspect_context` into
+`resources`, preserving each kind, id, and label byte for byte. Put read-only sources in `integrations` using
 only `gmail` or `calendar`, and only when `availableConnections` reports that
 source. Never put CRM, Gmail, Google Calendar, or another integration in
 `resources`. The runtime derives the human-readable access list.

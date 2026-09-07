@@ -1,7 +1,7 @@
 "use client";
 
+import CarFront from "@carbon/icons-react/es/CarFront";
 import Email from "@carbon/icons-react/es/Email";
-import Partnership from "@carbon/icons-react/es/Partnership";
 import Star from "@carbon/icons-react/es/Star";
 import type { FieldValueJson } from "@crm/db/fields";
 import {
@@ -35,8 +35,8 @@ import {
 	savingValue,
 } from "@/components/crm/inline-field";
 import { OwnerCell } from "@/components/crm/owner-cell";
+import { RentalStatusIndicator } from "@/components/crm/rental-status";
 import { ContactSocials } from "@/components/crm/social-links";
-import { DealStageMenu } from "@/components/crm/stage-change";
 import { Timeline } from "@/components/crm/timeline/timeline";
 import {
 	DetailSheetBody,
@@ -49,7 +49,11 @@ import {
 	DetailSheetStats,
 	type DetailSheetTab,
 } from "@/components/detail-sheet";
-import { LocalDateTime, LocalRelativeDate } from "@/components/local-date-time";
+import {
+	LocalDateTime,
+	LocalDay,
+	LocalRelativeDate,
+} from "@/components/local-date-time";
 import { factsByField } from "@/lib/contact-facts";
 import { ENRICHMENT_POLL_MS, isEnriching } from "@/lib/enrichment-status";
 import { savingField } from "@/lib/pending-field";
@@ -58,7 +62,7 @@ import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { RecordActions } from "./record-actions";
-import { DealAmount, MetaLine, RecordSheetFrame } from "./record-parts";
+import { MetaLine, MoneyAmount, RecordSheetFrame } from "./record-parts";
 import { useOpenRecord, useRecordSheetView } from "./record-stack";
 
 type Contact = RouterOutputs["contacts"]["byId"];
@@ -71,17 +75,17 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 	year: "numeric",
 };
 
-const DEAL_COLUMNS = [
-	{ id: "deal", header: "Deal", width: "w-[32%]", className: "pl-5" },
+const RENTAL_CONTRACT_COLUMNS = [
+	{ id: "vehicle", header: "Vehicle", width: "w-[26%]", className: "pl-5" },
 	{ id: "role", header: "Role", width: "w-[16%]" },
-	{ id: "stage", header: "Stage", width: "w-[22%]" },
+	{ id: "status", header: "Status", width: "w-[18%]" },
 	{
 		id: "amount",
 		header: "Amount",
 		width: "w-[16%]",
 		align: "right" as const,
 	},
-	{ id: "owner", header: "Owner", width: "w-[14%]" },
+	{ id: "dates", header: "Dates", width: "w-[24%]" },
 ];
 
 export function ContactSheet({ contactId }: { contactId: string }) {
@@ -118,10 +122,10 @@ export function ContactSheet({ contactId }: { contactId: string }) {
 					content: <ContactOverview contact={contact} />,
 				},
 				{
-					value: "deals",
-					label: "Deals",
-					count: contact.deals.length,
-					content: <ContactDeals contact={contact} />,
+					value: "rentalContracts",
+					label: "Rental contracts",
+					count: contact.rentalContracts.length,
+					content: <ContactRentalContracts contact={contact} />,
 				},
 				{
 					value: "activity",
@@ -591,44 +595,51 @@ function Colleagues({
 	);
 }
 
-function ContactDeals({ contact }: { contact: Contact }) {
+function ContactRentalContracts({ contact }: { contact: Contact }) {
 	const openRecord = useOpenRecord();
 
-	if (contact.deals.length === 0) {
+	if (contact.rentalContracts.length === 0) {
 		return (
 			<DetailSheetEmpty
-				icon={Partnership}
-				title="Not on any deals"
-				description={`${contactName(contact)} is not attached to anything being sold yet. Deals are opened on the company, then people are added to them.`}
+				icon={CarFront}
+				title="No rental contracts"
+				description={`${contactName(contact)} has not rented a vehicle, and is not listed as an additional driver on one, yet.`}
 			/>
 		);
 	}
 
 	return (
-		<SimpleTable variant="panel" columns={DEAL_COLUMNS}>
-			{contact.deals.map((deal) => (
+		<SimpleTable variant="panel" columns={RENTAL_CONTRACT_COLUMNS}>
+			{contact.rentalContracts.map((contract) => (
 				<SimpleTableRow
-					key={deal.id}
+					key={contract.id}
 					clickable
-					onClick={() => openRecord({ kind: "deal", id: deal.id })}
+					onClick={() =>
+						openRecord({ kind: "rentalContract", id: contract.id })
+					}
 				>
 					<TableCell className="truncate py-2.5 pr-3 pl-5 font-medium">
-						{deal.name}
+						{contract.vehicle.make} {contract.vehicle.model}
+						<span className="text-muted-foreground">
+							{" "}
+							· {contract.vehicle.plateNumber}
+						</span>
 					</TableCell>
 					<TableCell className="truncate px-3 py-2.5 text-muted-foreground">
-						{deal.role ?? <EmptyCellValue />}
+						{contract.role === "PRIMARY" ? "Renter" : "Additional driver"}
 					</TableCell>
 					<TableCell className="px-3 py-2.5">
-						<DealStageMenu dealId={deal.id} stage={deal.stage} />
+						<RentalStatusIndicator status={contract.status} />
 					</TableCell>
 					<TableCell className="px-3 py-2.5 text-right">
-						<DealAmount
-							amountCents={deal.amountCents}
-							currency={deal.currency}
+						<MoneyAmount
+							amountCents={contract.totalAmountCents}
+							currency={contract.currency}
 						/>
 					</TableCell>
-					<TableCell className="px-3 py-2.5">
-						<OwnerCell owner={deal.owner} />
+					<TableCell className="truncate px-3 py-2.5 text-muted-foreground">
+						<LocalDay date={contract.startDate} /> –{" "}
+						<LocalDay date={contract.endDate} />
 					</TableCell>
 				</SimpleTableRow>
 			))}

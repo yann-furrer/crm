@@ -35,7 +35,14 @@ const ENTRY_SELECT = {
 	createdBy: { select: AUTHOR_SELECT },
 	company: { select: { id: true, name: true } },
 	contact: { select: { id: true, firstName: true, lastName: true } },
-	deal: { select: { id: true, name: true } },
+	vehicle: { select: { id: true, plateNumber: true, make: true, model: true } },
+	rentalContract: {
+		select: {
+			id: true,
+			status: true,
+			vehicle: { select: { plateNumber: true } },
+		},
+	},
 
 	emailThread: {
 		select: {
@@ -98,7 +105,10 @@ export class ActivitiesService {
 	}
 
 	async timelineCounts(
-		input: Pick<TimelineInput, "companyId" | "contactId" | "dealId">,
+		input: Pick<
+			TimelineInput,
+			"companyId" | "contactId" | "vehicleId" | "rentalContractId"
+		>,
 	) {
 		const anchor = this.anchor(input);
 
@@ -136,14 +146,20 @@ export class ActivitiesService {
 				dueAt: isTask ? parseDate(input.dueAt) : null,
 				companyId,
 				contactId: input.contactId ?? null,
-				dealId: input.dealId ?? null,
+				vehicleId: input.vehicleId ?? null,
+				rentalContractId: input.rentalContractId ?? null,
 				createdById: actingUserId,
 			},
 			select: ENTRY_SELECT,
 		});
 
 		await this.stamp.touch(
-			{ companyId, contactId: input.contactId, dealId: input.dealId },
+			{
+				companyId,
+				contactId: input.contactId,
+				vehicleId: input.vehicleId,
+				rentalContractId: input.rentalContractId,
+			},
 			activity.createdAt,
 		);
 
@@ -204,13 +220,19 @@ export class ActivitiesService {
 	}
 
 	private anchor(
-		input: Pick<TimelineInput, "companyId" | "contactId" | "dealId">,
+		input: Pick<
+			TimelineInput,
+			"companyId" | "contactId" | "vehicleId" | "rentalContractId"
+		>,
 	): Prisma.ActivityWhereInput {
-		if (input.dealId) return { dealId: input.dealId };
+		if (input.rentalContractId) {
+			return { rentalContractId: input.rentalContractId };
+		}
+		if (input.vehicleId) return { vehicleId: input.vehicleId };
 		if (input.contactId) return { contactId: input.contactId };
 		if (input.companyId) return { companyId: input.companyId };
 		throw new BadRequestException(
-			"A timeline needs a company, a contact or a deal.",
+			"A timeline needs a company, a contact, a vehicle or a rental contract.",
 		);
 	}
 
@@ -219,15 +241,8 @@ export class ActivitiesService {
 	): Promise<string | null> {
 		if (input.companyId) return input.companyId;
 
-		if (input.dealId) {
-			const deal = await this.db.deal.findUnique({
-				where: { id: input.dealId },
-				select: { companyId: true },
-			});
-			if (!deal) {
-				throw new NotFoundException(`No deal with id ${input.dealId}.`);
-			}
-			return deal.companyId;
+		if (input.vehicleId || input.rentalContractId) {
+			return null;
 		}
 
 		if (input.contactId) {

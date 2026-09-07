@@ -12,19 +12,24 @@ import {
 	timelineTabParser,
 } from "@/components/crm/timeline/timeline-search-params";
 
-const RECORD_KINDS = ["company", "contact", "deal"] as const;
+const RECORD_KINDS = [
+	"company",
+	"contact",
+	"vehicle",
+	"rentalContract",
+] as const;
 
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 export type RecordRef = { kind: RecordKind; id: string };
 
-const RECORD_FORMS = ["contact", "deal"] as const;
+const RECORD_FORMS = ["contact", "driver"] as const;
 
 export type RecordForm = (typeof RECORD_FORMS)[number];
 
 const FORM_TAB: Record<RecordForm, string> = {
 	contact: "contacts",
-	deal: "deals",
+	driver: "drivers",
 };
 
 const params = {

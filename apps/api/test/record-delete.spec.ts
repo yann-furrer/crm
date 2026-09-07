@@ -244,7 +244,7 @@ describe("deleting a contact", () => {
 });
 
 describe("deleting a company", () => {
-	it("takes its deals and leaves its people without a company", async () => {
+	it("leaves its people without a company", async () => {
 		const company = await companies.create({
 			name: "Doomed",
 			domain: doomedDomain,
@@ -255,10 +255,6 @@ describe("deleting a company", () => {
 			email: `left@${doomedDomain}`,
 			companyId: company.id,
 		});
-		const deal = await db.deal.create({
-			data: { name: "Doomed deal", companyId: company.id, ownerId: userId },
-			select: { id: true },
-		});
 
 		await parked({ companyId: company.id });
 
@@ -267,7 +263,6 @@ describe("deleting a company", () => {
 			name: "Doomed",
 		});
 
-		expect(await db.deal.findUnique({ where: { id: deal.id } })).toBeNull();
 		expect(await db.agentTask.count({ where: { companyId: company.id } })).toBe(
 			0,
 		);
@@ -293,8 +288,14 @@ describe("the activity stamps a delete leaves behind", () => {
 			email: `stamped@${stampDomain}`,
 			companyId: company.id,
 		});
-		const deal = await db.deal.create({
-			data: { name: "Stamped deal", companyId: company.id, ownerId: userId },
+		const vehicle = await db.vehicle.create({
+			data: {
+				type: "CAR",
+				make: "Stamped",
+				model: "Coupe",
+				plateNumber: `STAMPED-${suffix}`,
+				ownerId: userId,
+			},
 			select: { id: true },
 		});
 
@@ -305,13 +306,13 @@ describe("the activity stamps a delete leaves behind", () => {
 				subject: "The only thing on this account",
 				companyId: company.id,
 				contactId: contact.id,
-				dealId: deal.id,
+				vehicleId: vehicle.id,
 				createdById: userId,
 				createdAt: at,
 			},
 		});
 		await stamp.touch(
-			{ companyId: company.id, contactId: contact.id, dealId: deal.id },
+			{ companyId: company.id, contactId: contact.id, vehicleId: vehicle.id },
 			at,
 		);
 
@@ -324,50 +325,12 @@ describe("the activity stamps a delete leaves behind", () => {
 			}),
 		).toEqual({ lastActivityAt: null });
 		expect(
-			await db.deal.findUnique({
-				where: { id: deal.id },
+			await db.vehicle.findUnique({
+				where: { id: vehicle.id },
 				select: { lastActivityAt: true },
 			}),
 		).toEqual({ lastActivityAt: null });
-	});
 
-	it("follow a deleted company through the deals it takes with it", async () => {
-		const company = await companies.create({
-			name: "Orphaner",
-			domain: orphanDomain,
-		});
-		const contact = await contacts.create({
-			firstName: "Orphaned",
-			email: `orphaned@${orphanDomain}`,
-			companyId: company.id,
-		});
-		const deal = await db.deal.create({
-			data: { name: "Orphaned deal", companyId: company.id, ownerId: userId },
-			select: { id: true },
-		});
-
-		const at = new Date();
-		await db.activity.create({
-			data: {
-				type: "MEETING",
-				subject: "Only ever attached to the deal",
-				contactId: contact.id,
-				dealId: deal.id,
-				createdById: userId,
-				createdAt: at,
-			},
-		});
-		await stamp.touch({ contactId: contact.id, dealId: deal.id }, at);
-
-		await companies.delete(company.id);
-
-		expect(
-			await db.contact.findUnique({
-				where: { id: contact.id },
-				select: { companyId: true, lastActivityAt: true },
-			}),
-		).toEqual({ companyId: null, lastActivityAt: null });
-
-		await db.contact.delete({ where: { id: contact.id } });
+		await db.vehicle.delete({ where: { id: vehicle.id } });
 	});
 });

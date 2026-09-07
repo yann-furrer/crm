@@ -14,10 +14,6 @@ import { CardTableEmpty } from "@crm/ui/components/card-table";
 import { Checkbox } from "@crm/ui/components/checkbox";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
 import {
-	EntityLogo,
-	type EntityLogoTone,
-} from "@crm/ui/components/entity-logo";
-import {
 	SimpleTable,
 	type SimpleTableColumn,
 	SimpleTableRow,
@@ -29,26 +25,32 @@ import { formatCount, formatMoneyCompact } from "@crm/ui/lib/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useQueryState } from "nuqs";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import { toast } from "sonner";
-import { DealStageIndicator } from "@/components/crm/deal-stage";
 import { RecordLink } from "@/components/crm/record-sheet/record-link";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
+import { RentalStatusIndicator } from "@/components/crm/rental-status";
 import { LocalRelativeTime } from "@/components/local-date-time";
 import { activityLabel } from "@/lib/activity-presentation";
-import { dealStageColor } from "@/lib/deal-stage";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
+import { FleetDashboard } from "./fleet-dashboard";
 import { overviewParsers } from "./overview-search-params";
-import { SalesDashboard } from "./sales-dashboard";
 
 const CELL = "px-3 py-2.5 align-middle";
-const OPEN_COLUMNS: SimpleTableColumn[] = [
-	{ id: "deal", header: "Deal" },
+
+const STATUS_COLOR: Record<string, string> = {
+	DRAFT: "var(--chart-5)",
+	RESERVED: "var(--chart-1)",
+	ACTIVE: "var(--chart-2)",
+};
+
+const CONTRACT_COLUMNS: SimpleTableColumn[] = [
+	{ id: "contract", header: "Contract" },
 	{
-		id: "stage",
-		header: "Stage",
+		id: "status",
+		header: "Status",
 		width: "w-32",
 		className: "hidden lg:table-cell",
 	},
@@ -74,8 +76,8 @@ const ACTIVITY_COLUMNS: SimpleTableColumn[] = [
 		className: "hidden md:table-cell",
 	},
 	{
-		id: "deal",
-		header: "Deal",
+		id: "contract",
+		header: "Contract",
 		width: "w-48",
 		className: "hidden lg:table-cell",
 	},
@@ -118,71 +120,80 @@ export function DashboardSummary() {
 		);
 	}
 
-	const { biggestOpen, overdueTasks, recentActivity } = summary;
+	const { topActiveContracts, overdueTasks, recentActivity } = summary;
 
 	const mine = scope === "me";
-	const largestOpenCents = biggestOpen[0]?.baseAmountCents ?? 0;
+	const largestActiveCents = topActiveContracts[0]?.baseAmountCents ?? 0;
 
 	return (
 		<div className="flex flex-col gap-6">
-			<SalesDashboard summary={summary} />
+			<FleetDashboard summary={summary} />
 
 			<div className="grid gap-6 @3xl/page-content:grid-cols-2">
 				<Card className="min-w-0">
 					<CardHeader>
-						<CardTitle>Deals in progress</CardTitle>
+						<CardTitle>Active contracts</CardTitle>
 						<CardDescription>
-							The largest open deals, and how long each has sat in its stage
+							The highest-value reservations and rentals in progress
 						</CardDescription>
 						<CardAction>
 							<Button asChild variant="contrast" size="sm">
-								<Link href={workspaceUrl("/deals")}>Open deals</Link>
+								<Link href={workspaceUrl("/rental-contracts")}>
+									Open contracts
+								</Link>
 							</Button>
 						</CardAction>
 					</CardHeader>
 					<CardPanel>
-						{biggestOpen.length === 0 ? (
+						{topActiveContracts.length === 0 ? (
 							<CardPanelEmpty>
-								Nothing open. Time to fill the pipeline.
+								Nothing active. Time to fill the fleet.
 							</CardPanelEmpty>
 						) : (
 							<SimpleTable
 								variant="panel"
 								surface="page"
-								columns={OPEN_COLUMNS}
+								columns={CONTRACT_COLUMNS}
 							>
-								{biggestOpen.map((deal) => (
+								{topActiveContracts.map((contract) => (
 									<SimpleTableRow
-										key={deal.id}
+										key={contract.id}
 										clickable
-										onClick={() => openRecord({ kind: "deal", id: deal.id })}
+										onClick={() =>
+											openRecord({ kind: "rentalContract", id: contract.id })
+										}
 									>
 										<TableCell className={CELL}>
-											<DealCell
-												name={deal.name}
-												company={deal.company}
-												meta={<LocalRelativeTime date={deal.stageChangedAt} />}
+											<ContractCell
+												vehicle={contract.vehicle}
+												renterName={`${contract.contact.firstName} ${contract.contact.lastName ?? ""}`.trim()}
 											/>
 										</TableCell>
 										<TableCell className={`${CELL} hidden lg:table-cell`}>
-											<DealStageIndicator stage={deal.stage} />
+											<RentalStatusIndicator status={contract.status} />
 										</TableCell>
 										<TableCell className={`${CELL} hidden sm:table-cell`}>
 											<ValueMeter
 												share={
-													largestOpenCents > 0
-														? ((deal.baseAmountCents ?? 0) / largestOpenCents) *
+													largestActiveCents > 0
+														? ((contract.baseAmountCents ?? 0) /
+																largestActiveCents) *
 															100
 														: 0
 												}
-												color={dealStageColor(deal.stage)}
+												color={
+													STATUS_COLOR[contract.status] ?? "var(--chart-5)"
+												}
 											/>
 										</TableCell>
 										<TableCell className={`${CELL} text-right tabular-nums`}>
-											{deal.amountCents === null ? (
+											{contract.totalAmountCents === null ? (
 												<EmptyCellValue />
 											) : (
-												formatMoneyCompact(deal.amountCents, deal.currency)
+												formatMoneyCompact(
+													contract.totalAmountCents,
+													contract.currency,
+												)
 											)}
 										</TableCell>
 									</SimpleTableRow>
@@ -226,9 +237,12 @@ export function DashboardSummary() {
 											<span className="flex min-w-0 flex-col">
 												<span className="truncate">{task.subject}</span>
 												<span className="flex min-w-0 text-muted-foreground">
-													{task.deal ? (
-														<RecordLink kind="deal" id={task.deal.id}>
-															{task.deal.name}
+													{task.rentalContract ? (
+														<RecordLink
+															kind="rentalContract"
+															id={task.rentalContract.id}
+														>
+															{task.rentalContract.vehicle.plateNumber}
 														</RecordLink>
 													) : task.company ? (
 														<RecordLink kind="company" id={task.company.id}>
@@ -265,8 +279,8 @@ export function DashboardSummary() {
 					</CardTitle>
 					<CardDescription>
 						{mine
-							? "Every note, task and stage change you have logged"
-							: "Every note, task and stage change across the workspace"}
+							? "Every note, task and status change you have logged"
+							: "Every note, task and status change across the workspace"}
 					</CardDescription>
 					<CardAction>
 						<Button asChild variant="contrast" size="sm">
@@ -295,9 +309,12 @@ export function DashboardSummary() {
 									)}
 								</TableCell>
 								<TableCell className={`${CELL} hidden lg:table-cell`}>
-									{entry.deal ? (
-										<RecordLink kind="deal" id={entry.deal.id}>
-											{entry.deal.name}
+									{entry.rentalContract ? (
+										<RecordLink
+											kind="rentalContract"
+											id={entry.rentalContract.id}
+										>
+											{entry.rentalContract.vehicle.plateNumber}
 										</RecordLink>
 									) : (
 										<EmptyCellValue />
@@ -322,40 +339,20 @@ export function DashboardSummary() {
 	);
 }
 
-function DealCell({
-	name,
-	company,
-	meta,
+function ContractCell({
+	vehicle,
+	renterName,
 }: {
-	name: string;
-	company: {
-		name: string;
-		iconUrl: string | null;
-		iconDarkUrl: string | null;
-		iconTone: string | null;
-	};
-	meta?: ReactNode;
+	vehicle: { make: string; model: string; plateNumber: string };
+	renterName: string;
 }) {
 	return (
-		<span className="flex min-w-0 items-center gap-2">
-			<EntityLogo
-				src={company.iconUrl}
-				darkSrc={company.iconDarkUrl}
-				tone={company.iconTone as EntityLogoTone | null | undefined}
-				name={company.name}
-				size="sm"
-			/>
-			<span className="flex min-w-0 flex-col">
-				<span className="truncate font-medium">{name}</span>
-				<span className="truncate text-muted-foreground">
-					{meta ? (
-						<>
-							{company.name} · {meta}
-						</>
-					) : (
-						company.name
-					)}
-				</span>
+		<span className="flex min-w-0 flex-col">
+			<span className="truncate font-medium">
+				{vehicle.make} {vehicle.model}
+			</span>
+			<span className="truncate text-muted-foreground">
+				{vehicle.plateNumber} · {renterName}
 			</span>
 		</span>
 	);

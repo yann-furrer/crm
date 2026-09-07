@@ -15,8 +15,8 @@ import type { FaviconService } from "../src/companies/favicon.service";
 import { ContactsService } from "../src/contacts/contacts.service";
 import { ActivityStampService } from "../src/crm/activity-stamp.service";
 import { ConversionService } from "../src/currency/conversion.service";
-import { DealsService } from "../src/deals/deals.service";
 import { FieldsService } from "../src/fields/fields.service";
+import { VehiclesService } from "../src/vehicles/vehicles.service";
 
 const suffix = process.env.TEST_RUN_ID ?? "fields-spec";
 const domain = `fields-${suffix}.test`;
@@ -55,7 +55,7 @@ const contacts = new ContactsService(
 	stamp,
 	fields,
 );
-const deals = new DealsService(db, stamp, conversion, fields);
+const vehicles = new VehiclesService(db, stamp, conversion, fields);
 
 let companyId: string;
 let bridgeSecret: string | undefined;
@@ -70,7 +70,9 @@ async function clean() {
 	await db.agentTask.deleteMany({
 		where: { kind: "field-backfill", reason: { contains: "spec_" } },
 	});
-	await db.deal.deleteMany({ where: { companyId: { in: companyIds } } });
+	await db.vehicle.deleteMany({
+		where: { plateNumber: { contains: suffix } },
+	});
 	await db.contact.deleteMany({ where: { companyId: { in: companyIds } } });
 	await db.fieldValue.deleteMany({
 		where: { companyId: { in: companyIds } },
@@ -181,7 +183,7 @@ describe("field definitions", () => {
 
 	it("will not turn a field into a select with nothing to choose", async () => {
 		const field = await fields.create({
-			entity: "DEAL",
+			entity: "VEHICLE",
 			label: "Spec plain",
 			type: "TEXT",
 			options: [],
@@ -509,9 +511,9 @@ describe("a record update that fails", () => {
 		).toBe(0);
 	});
 
-	it("leaves a deal's field values as they were", async () => {
+	it("leaves a vehicle's field values as they were", async () => {
 		await fields.create({
-			entity: "DEAL",
+			entity: "VEHICLE",
 			label: "Spec risk",
 			type: "TEXT",
 			options: [],
@@ -522,23 +524,35 @@ describe("a record update that fails", () => {
 			showOnTable: false,
 		});
 
-		const deal = await db.deal.create({
-			data: { name: `Spec deal ${suffix}`, companyId, ownerId },
+		const vehicle = await db.vehicle.create({
+			data: {
+				type: "CAR",
+				make: "Toyota",
+				model: "Corolla",
+				plateNumber: `SPEC-${suffix}`,
+				ownerId,
+			},
 			select: { id: true },
 		});
 
 		await expect(
-			deals.update(deal.id, {
-				companyId: `nobody-${suffix}`,
+			vehicles.update(vehicle.id, {
+				ownerId: `nobody-${suffix}`,
 				fields: { spec_risk: "Champion left" },
 			}),
 		).rejects.toThrow();
 
-		expect(await db.fieldValue.count({ where: { dealId: deal.id } })).toBe(0);
+		expect(
+			await db.fieldValue.count({ where: { vehicleId: vehicle.id } }),
+		).toBe(0);
 
-		await deals.update(deal.id, { fields: { spec_risk: "Champion left" } });
+		await vehicles.update(vehicle.id, {
+			fields: { spec_risk: "Champion left" },
+		});
 
-		expect(await db.fieldValue.count({ where: { dealId: deal.id } })).toBe(1);
+		expect(
+			await db.fieldValue.count({ where: { vehicleId: vehicle.id } }),
+		).toBe(1);
 	});
 });
 

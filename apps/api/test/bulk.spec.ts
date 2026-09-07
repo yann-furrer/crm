@@ -2,20 +2,20 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db } from "@crm/db";
 import { AgentQueueService } from "../src/agent/agent-queue.service";
 import type { AgentTriggerService } from "../src/agent/agent-trigger.service";
-import { CompaniesService } from "../src/companies/companies.service";
 import { CompanyDirectoryService } from "../src/companies/company-directory.service";
-import type { FaviconService } from "../src/companies/favicon.service";
 import { ContactsService } from "../src/contacts/contacts.service";
 import { ActivityStampService } from "../src/crm/activity-stamp.service";
 import { ConversionService } from "../src/currency/conversion.service";
-import { DealsService } from "../src/deals/deals.service";
 import { FieldsService } from "../src/fields/fields.service";
+import { RentalContractsService } from "../src/rental-contracts/rental-contracts.service";
+import { VehiclesService } from "../src/vehicles/vehicles.service";
 
 const suffix = process.env.TEST_RUN_ID ?? "bulk-spec";
 const domain = `bulk-${suffix}.test`;
 const ownerId = `owner-${suffix}`;
 const secondOwnerId = `second-owner-${suffix}`;
 const ours = { OR: [{ email: { endsWith: `@${domain}` } }] };
+const platePrefix = `BULK-${suffix}`;
 
 const agent = {
 	contactCreated: async () => undefined,
@@ -37,32 +37,28 @@ const contacts = new ContactsService(
 	stamp,
 	fields,
 );
-const companies = new CompaniesService(
+const vehicles = new VehiclesService(db, stamp, conversion, fields);
+const rentalContracts = new RentalContractsService(
 	db,
-	agent,
-	queue,
-	{ backfill: async () => undefined } as unknown as FaviconService,
 	stamp,
 	conversion,
 	fields,
 );
-const deals = new DealsService(db, stamp, conversion, fields);
-
-let companyId: string;
 
 async function clean() {
-	const owned = await db.company.findMany({
-		where: { domain: { endsWith: domain } },
-		select: { id: true },
+	await db.rentalContractDriver.deleteMany({
+		where: {
+			contract: { vehicle: { plateNumber: { startsWith: platePrefix } } },
+		},
 	});
-	const companyIds = owned.map((row) => row.id);
-
-	await db.deal.deleteMany({ where: { companyId: { in: companyIds } } });
-	await db.activity.deleteMany({ where: { companyId: { in: companyIds } } });
-	await db.agentTask.deleteMany({ where: { companyId: { in: companyIds } } });
+	await db.rentalContract.deleteMany({
+		where: { vehicle: { plateNumber: { startsWith: platePrefix } } },
+	});
+	await db.vehicle.deleteMany({
+		where: { plateNumber: { startsWith: platePrefix } },
+	});
 	await db.contact.deleteMany({ where: ours });
 	await db.suppressedContact.deleteMany({ where: ours });
-	await db.company.deleteMany({ where: { domain: { endsWith: domain } } });
 	await db.user.deleteMany({ where: { id: { in: [ownerId, secondOwnerId] } } });
 }
 
@@ -75,15 +71,36 @@ beforeAll(async () => {
 			{ id: secondOwnerId, name: "Second Rep", email: `second@${domain}` },
 		],
 	});
-
-	const company = await db.company.create({
-		data: { name: `Bulk Co ${suffix}`, domain },
-		select: { id: true },
-	});
-	companyId = company.id;
 });
 
 afterAll(clean);
+
+async function makeVehicle(plateSuffix: string): Promise<string> {
+	const vehicle = await vehicles.create({
+		type: "CAR",
+		make: "Bulk",
+		model: "Test",
+		plateNumber: `${platePrefix}-${plateSuffix}`,
+		ownerId,
+	});
+	return vehicle.id;
+}
+
+async function makeContract(
+	vehicleId: string,
+	renterId: string,
+): Promise<string> {
+	const contract = await rentalContracts.create({
+		vehicleId,
+		contactId: renterId,
+		ownerId,
+		startDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+		endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+		pricePerDayCents: 4500,
+		depositAmountCents: 10000,
+	});
+	return contract.id;
+}
 
 describe("assigning an owner to a selection", () => {
 	it("moves every record it was given", async () => {
@@ -146,6 +163,44 @@ describe("assigning an owner to a selection", () => {
 			}),
 		).toEqual({ ownerId: null });
 	});
+
+	it("moves a selection of vehicles just the same way", async () => {
+		const first = await makeVehicle("owner-1");
+		const second = await makeVehicle("owner-2");
+
+		expect(
+			await vehicles.bulkAssignOwner({
+				ids: [first, second],
+				ownerId: secondOwnerId,
+			}),
+		).toEqual({ requested: 2, succeeded: 2, failed: 0, message: null });
+
+		expect(
+			await db.vehicle.count({
+				where: { id: { in: [first, second] }, ownerId: secondOwnerId },
+			}),
+		).toBe(2);
+	});
+});
+
+describe("setting the status of a selection of vehicles", () => {
+	it("moves every vehicle it was given", async () => {
+		const first = await makeVehicle("status-1");
+		const second = await makeVehicle("status-2");
+
+		expect(
+			await vehicles.bulkSetStatus({
+				ids: [first, second],
+				status: "MAINTENANCE",
+			}),
+		).toEqual({ requested: 2, succeeded: 2, failed: 0, message: null });
+
+		expect(
+			await db.vehicle.count({
+				where: { id: { in: [first, second] }, status: "MAINTENANCE" },
+			}),
+		).toBe(2);
+	});
 });
 
 describe("deleting a selection", () => {
@@ -192,86 +247,90 @@ describe("deleting a selection", () => {
 		).toBeNull();
 	});
 
-	it("takes a company's deals with it", async () => {
-		const doomed = await companies.create({
-			name: `Doomed Co ${suffix}`,
-			domain: `doomed-${domain}`,
+	it("removes a selection of rental contracts", async () => {
+		const renter = await contacts.create({
+			firstName: "Renter",
+			email: `renter@${domain}`,
 		});
-		const deal = await deals.create({
-			name: `Doomed deal ${suffix}`,
-			companyId: doomed.id,
-			ownerId,
-		});
+		const vehicleId = await makeVehicle("delete-1");
+		const contractId = await makeContract(vehicleId, renter.id);
 
-		expect(await companies.bulkDelete([doomed.id])).toEqual({
+		expect(await rentalContracts.bulkDelete([contractId])).toEqual({
 			requested: 1,
 			succeeded: 1,
 			failed: 0,
 			message: null,
 		});
 
-		expect(await db.deal.findUnique({ where: { id: deal.id } })).toBeNull();
+		expect(
+			await db.rentalContract.findUnique({ where: { id: contractId } }),
+		).toBeNull();
 	});
 });
 
-describe("moving a selection of deals to a stage", () => {
-	it("will not close them as lost without a reason", async () => {
-		const deal = await deals.create({
-			name: `Unreasoned ${suffix}`,
-			companyId,
-			ownerId,
+describe("changing a rental contract's status", () => {
+	it("will not cancel one without a reason", async () => {
+		const renter = await contacts.create({
+			firstName: "Unreasoned",
+			email: `unreasoned@${domain}`,
 		});
+		const vehicleId = await makeVehicle("reason-1");
+		const contractId = await makeContract(vehicleId, renter.id);
 
 		await expect(
-			deals.bulkSetStage({ ids: [deal.id], stage: "CLOSED_LOST" }, ownerId),
-		).rejects.toThrow(/teaches nobody anything/);
-
-		expect(
-			await db.deal.findUnique({
-				where: { id: deal.id },
-				select: { stage: true },
-			}),
-		).toEqual({ stage: "DEMO_BOOKED" });
-	});
-
-	it("writes the one reason onto every deal's timeline", async () => {
-		const first = await deals.create({
-			name: `Lost one ${suffix}`,
-			companyId,
-			ownerId,
-		});
-		const second = await deals.create({
-			name: `Lost two ${suffix}`,
-			companyId,
-			ownerId,
-		});
-
-		expect(
-			await deals.bulkSetStage(
-				{
-					ids: [first.id, second.id],
-					stage: "CLOSED_LOST",
-					closedReason: "Budget pulled",
-				},
+			rentalContracts.setStatus(
+				{ id: contractId, status: "CANCELLED" },
 				ownerId,
 			),
-		).toEqual({ requested: 2, succeeded: 2, failed: 0, message: null });
+		).rejects.toThrow(/cancelled/);
 
-		const closed = await db.deal.findMany({
-			where: { id: { in: [first.id, second.id] } },
-			select: { stage: true, closedReason: true, closedAt: true },
+		expect(
+			await db.rentalContract.findUnique({
+				where: { id: contractId },
+				select: { status: true },
+			}),
+		).toEqual({ status: "DRAFT" });
+	});
+
+	it("writes the one reason onto every contract's timeline", async () => {
+		const renterA = await contacts.create({
+			firstName: "Cancelled",
+			lastName: "One",
+			email: `cancelled-one@${domain}`,
+		});
+		const renterB = await contacts.create({
+			firstName: "Cancelled",
+			lastName: "Two",
+			email: `cancelled-two@${domain}`,
+		});
+		const vehicleA = await makeVehicle("reason-2");
+		const vehicleB = await makeVehicle("reason-3");
+		const first = await makeContract(vehicleA, renterA.id);
+		const second = await makeContract(vehicleB, renterB.id);
+
+		for (const id of [first, second]) {
+			const result = await rentalContracts.setStatus(
+				{ id, status: "CANCELLED", cancelledReason: "Budget pulled" },
+				ownerId,
+			);
+			expect(result.changed).toBe(true);
+		}
+
+		const cancelled = await db.rentalContract.findMany({
+			where: { id: { in: [first, second] } },
+			select: { status: true, cancelledReason: true, cancelledAt: true },
 		});
 
-		expect(closed.every((deal) => deal.stage === "CLOSED_LOST")).toBe(true);
-		expect(closed.every((deal) => deal.closedReason === "Budget pulled")).toBe(
-			true,
-		);
-		expect(closed.every((deal) => deal.closedAt !== null)).toBe(true);
+		expect(cancelled.every((row) => row.status === "CANCELLED")).toBe(true);
+		expect(
+			cancelled.every((row) => row.cancelledReason === "Budget pulled"),
+		).toBe(true);
+		expect(cancelled.every((row) => row.cancelledAt !== null)).toBe(true);
 
 		expect(
 			await db.activity.count({
 				where: {
-					dealId: { in: [first.id, second.id] },
+					rentalContractId: { in: [first, second] },
 					type: "STAGE_CHANGE",
 					body: "Budget pulled",
 				},

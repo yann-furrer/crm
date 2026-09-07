@@ -16,7 +16,13 @@ const SIGN_IN_PATH = "/sign-in";
 
 const UNGATED = ["/grant-access", "/eve"];
 
-const SECTIONS = ["/companies", "/contacts", "/deals", "/settings"];
+const SECTIONS = [
+	"/companies",
+	"/contacts",
+	"/vehicles",
+	"/rental-contracts",
+	"/settings",
+];
 
 export async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;

@@ -29,7 +29,8 @@ import {
 export type TimelineAnchor =
 	| { companyId: string }
 	| { contactId: string }
-	| { dealId: string };
+	| { vehicleId: string }
+	| { rentalContractId: string };
 
 const TAB_LABELS: Record<TimelineTab, string> = {
 	all: "All",

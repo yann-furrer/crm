@@ -15,7 +15,12 @@ export async function mintBridgeToken(
 		email: string;
 		name: string;
 	},
-	record: { contactId?: string; companyId?: string; dealId?: string } = {},
+	record: {
+		contactId?: string;
+		companyId?: string;
+		vehicleId?: string;
+		rentalContractId?: string;
+	} = {},
 ): Promise<string> {
 	const secret = process.env.AGENT_BRIDGE_SECRET;
 	if (!secret) throw new Error("AGENT_BRIDGE_SECRET is not set.");
@@ -31,7 +36,10 @@ export async function mintBridgeToken(
 		name: user.name,
 		...(record.contactId ? { contactId: record.contactId } : {}),
 		...(record.companyId ? { companyId: record.companyId } : {}),
-		...(record.dealId ? { dealId: record.dealId } : {}),
+		...(record.vehicleId ? { vehicleId: record.vehicleId } : {}),
+		...(record.rentalContractId
+			? { rentalContractId: record.rentalContractId }
+			: {}),
 		iat: now,
 		nbf: now - 5,
 		exp: now + TTL_SECONDS,

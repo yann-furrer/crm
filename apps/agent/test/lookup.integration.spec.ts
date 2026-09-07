@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { DealStage, db } from "@crm/db";
-import { listDeals, searchCrm } from "../agent/lib/lookup";
+import { db, RentalContractStatus, VehicleStatus, VehicleType } from "@crm/db";
+import { listRentalContracts, searchCrm } from "../agent/lib/lookup";
 
 const suffix = process.env.TEST_RUN_ID ?? "lookup-spec";
 const domain = `northwind-${suffix}.test`;
@@ -10,9 +10,10 @@ let northwindId: string;
 let brightwaterId: string;
 let paulaId: string;
 let peterId: string;
-let dealId: string;
-let freshDealId: string;
-let closedDealId: string;
+let vehicleIds: string[] = [];
+let rentalContractId: string;
+let freshRentalContractId: string;
+let closedRentalContractId: string;
 
 beforeAll(async () => {
 	await cleanup();
@@ -72,42 +73,109 @@ beforeAll(async () => {
 	});
 	peterId = peter.id;
 
-	const deal = await db.deal.create({
+	const vehicle = await db.vehicle.create({
 		data: {
-			name: `Northwind renewal ${suffix}`,
-			companyId: northwindId,
+			type: VehicleType.MINIBUS,
+			make: "Toyota",
+			model: "Hiace",
+			plateNumber: `RENEW-${suffix}`,
+			status: VehicleStatus.RENTED,
+			dailyRate: 40_000,
+			currency: "XOF",
 			ownerId: user.id,
-			stage: DealStage.QUALIFIED_TO_BUY,
-			amount: 12_000,
+		},
+		select: { id: true },
+	});
+	vehicleIds.push(vehicle.id);
+
+	const freshVehicle = await db.vehicle.create({
+		data: {
+			type: VehicleType.CAR,
+			make: "Hyundai",
+			model: "Accent",
+			plateNumber: `FRESH-${suffix}`,
+			status: VehicleStatus.RESERVED,
+			dailyRate: 25_000,
+			currency: "XOF",
+			ownerId: user.id,
+		},
+		select: { id: true },
+	});
+	vehicleIds.push(freshVehicle.id);
+
+	const closedVehicle = await db.vehicle.create({
+		data: {
+			type: VehicleType.CAR,
+			make: "Kia",
+			model: "Rio",
+			plateNumber: `CLOSED-${suffix}`,
+			status: VehicleStatus.AVAILABLE,
+			dailyRate: 20_000,
+			currency: "XOF",
+			ownerId: user.id,
+		},
+		select: { id: true },
+	});
+	vehicleIds.push(closedVehicle.id);
+
+	const rentalContract = await db.rentalContract.create({
+		data: {
+			vehicleId: vehicle.id,
+			contactId: paulaId,
+			ownerId: user.id,
+			status: RentalContractStatus.ACTIVE,
+			startDate: new Date("2026-06-01T08:00:00.000Z"),
+			endDate: new Date("2026-06-10T08:00:00.000Z"),
+			pricePerDay: 40_000,
+			currency: "XOF",
+			totalAmount: 12_000,
+			depositAmount: 5_000,
+			depositCurrency: "XOF",
 			lastActivityAt: new Date("2026-06-01T12:00:00.000Z"),
 		},
 		select: { id: true },
 	});
-	dealId = deal.id;
+	rentalContractId = rentalContract.id;
 
-	const freshDeal = await db.deal.create({
+	const freshRentalContract = await db.rentalContract.create({
 		data: {
-			name: `Fresh expansion ${suffix}`,
-			companyId: northwindId,
+			vehicleId: freshVehicle.id,
+			contactId: paulaId,
 			ownerId: user.id,
-			stage: DealStage.CONTRACT_SENT,
+			status: RentalContractStatus.RESERVED,
+			startDate: new Date("2026-08-04T08:00:00.000Z"),
+			endDate: new Date("2026-08-11T08:00:00.000Z"),
+			pricePerDay: 25_000,
+			currency: "XOF",
+			totalAmount: 8_000,
+			depositAmount: 5_000,
+			depositCurrency: "XOF",
 			lastActivityAt: new Date("2026-08-04T12:00:00.000Z"),
 		},
 		select: { id: true },
 	});
-	freshDealId = freshDeal.id;
+	freshRentalContractId = freshRentalContract.id;
 
-	const closedDeal = await db.deal.create({
+	const closedRentalContract = await db.rentalContract.create({
 		data: {
-			name: `Closed renewal ${suffix}`,
-			companyId: brightwaterId,
+			vehicleId: closedVehicle.id,
+			contactId: peterId,
 			ownerId: user.id,
-			stage: DealStage.CLOSED_LOST,
+			status: RentalContractStatus.CANCELLED,
+			startDate: new Date("2026-05-01T08:00:00.000Z"),
+			endDate: new Date("2026-05-05T08:00:00.000Z"),
+			pricePerDay: 20_000,
+			currency: "XOF",
+			totalAmount: 6_000,
+			depositAmount: 5_000,
+			depositCurrency: "XOF",
+			cancelledAt: new Date("2026-05-02T12:00:00.000Z"),
+			cancelledReason: "Client cancelled",
 			lastActivityAt: new Date("2026-05-01T12:00:00.000Z"),
 		},
 		select: { id: true },
 	});
-	closedDealId = closedDeal.id;
+	closedRentalContractId = closedRentalContract.id;
 });
 
 afterAll(cleanup);
@@ -121,12 +189,20 @@ async function cleanup(): Promise<void> {
 
 	if (ids.length > 0) {
 		await db.activity.deleteMany({ where: { companyId: { in: ids } } });
-		await db.deal.deleteMany({ where: { companyId: { in: ids } } });
+	}
+	if (vehicleIds.length > 0) {
+		await db.rentalContract.deleteMany({
+			where: { vehicleId: { in: vehicleIds } },
+		});
+		await db.vehicle.deleteMany({ where: { id: { in: vehicleIds } } });
+	}
+	if (ids.length > 0) {
 		await db.contact.deleteMany({ where: { companyId: { in: ids } } });
 		await db.company.deleteMany({ where: { id: { in: ids } } });
 	}
 
 	await db.user.deleteMany({ where: { email: `rep.${suffix}@example.test` } });
+	vehicleIds = [];
 }
 
 describe("searchCrm", () => {
@@ -166,11 +242,11 @@ describe("searchCrm", () => {
 		expect(result.companies[0]?.id).toBe(northwindId);
 	});
 
-	it("finds a deal by name", async () => {
-		const result = await searchCrm(`Northwind renewal ${suffix}`);
+	it("finds a rental contract by vehicle plate", async () => {
+		const result = await searchCrm(`RENEW-${suffix}`);
 
-		expect(result.deals[0]?.id).toBe(dealId);
-		expect(result.deals[0]?.amount).toBe(12_000);
+		expect(result.rentalContracts[0]?.id).toBe(rentalContractId);
+		expect(result.rentalContracts[0]?.totalAmount).toBe(12_000);
 	});
 
 	it("narrows to the kinds asked for", async () => {
@@ -179,7 +255,7 @@ describe("searchCrm", () => {
 		});
 
 		expect(result.companies).toHaveLength(0);
-		expect(result.deals).toHaveLength(0);
+		expect(result.rentalContracts).toHaveLength(0);
 		expect(result.contacts.length).toBeGreaterThan(0);
 	});
 
@@ -200,42 +276,42 @@ describe("searchCrm", () => {
 	});
 });
 
-describe("listDeals", () => {
-	it("lists stale open deals across the pipeline", async () => {
-		const result = await listDeals({
+describe("listRentalContracts", () => {
+	it("lists stale open rental contracts across the fleet", async () => {
+		const result = await listRentalContracts({
 			status: "open",
 			inactiveForDays: 14,
 			now: new Date("2026-08-05T12:00:00.000Z"),
 		});
-		const ids = result.deals.map((deal) => deal.id);
+		const ids = result.rentalContracts.map((contract) => contract.id);
 
-		expect(ids).toContain(dealId);
-		expect(ids).not.toContain(freshDealId);
-		expect(ids).not.toContain(closedDealId);
-		expect(result.deals.find((deal) => deal.id === dealId)).toMatchObject({
+		expect(ids).toContain(rentalContractId);
+		expect(ids).not.toContain(freshRentalContractId);
+		expect(ids).not.toContain(closedRentalContractId);
+		expect(
+			result.rentalContracts.find(
+				(contract) => contract.id === rentalContractId,
+			),
+		).toMatchObject({
 			daysSinceLastActivity: 65,
 			neverActive: false,
-			company: {
-				domain,
-				iconUrl: "https://cdn.example.test/northwind-icon.png",
-				iconDarkUrl: "https://cdn.example.test/northwind-icon-dark.png",
-				iconTone: "opaque",
-				logoUrl: "https://cdn.example.test/northwind-logo.svg",
-			},
+			vehicle: `Toyota Hiace (RENEW-${suffix})`,
 			owner: { image: "https://cdn.example.test/rep-one.png" },
 		});
 	});
 
-	it("paginates a broad deal sweep without repeating a row", async () => {
-		const first = await listDeals({ status: "all", limit: 1 });
+	it("paginates a broad fleet sweep without repeating a row", async () => {
+		const first = await listRentalContracts({ status: "all", limit: 1 });
 		expect(first.hasMore).toBe(true);
 		expect(first.nextCursor).toBeTruthy();
 
-		const second = await listDeals({
+		const second = await listRentalContracts({
 			status: "all",
 			limit: 1,
 			cursor: first.nextCursor ?? undefined,
 		});
-		expect(second.deals[0]?.id).not.toBe(first.deals[0]?.id);
+		expect(second.rentalContracts[0]?.id).not.toBe(
+			first.rentalContracts[0]?.id,
+		);
 	});
 });

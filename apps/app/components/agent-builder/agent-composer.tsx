@@ -6,8 +6,9 @@ import ArrowUp from "@carbon/icons-react/es/ArrowUp";
 import AttachmentIcon from "@carbon/icons-react/es/Attachment";
 import Building from "@carbon/icons-react/es/Building";
 import Calendar from "@carbon/icons-react/es/Calendar";
+import CarFront from "@carbon/icons-react/es/CarFront";
+import DocumentSigned from "@carbon/icons-react/es/DocumentSigned";
 import Email from "@carbon/icons-react/es/Email";
-import Partnership from "@carbon/icons-react/es/Partnership";
 import Search from "@carbon/icons-react/es/Search";
 import User from "@carbon/icons-react/es/User";
 import {
@@ -1461,7 +1462,8 @@ const RESOURCE_ICONS: Record<BuilderResource["kind"], CarbonIcon> = {
 	integration: Application,
 	company: Building,
 	contact: User,
-	deal: Partnership,
+	vehicle: CarFront,
+	rentalContract: DocumentSigned,
 };
 
 function ResourceButton({

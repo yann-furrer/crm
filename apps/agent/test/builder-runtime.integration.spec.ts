@@ -79,16 +79,16 @@ describe("builder persistence", () => {
 			await setBuilderConversationTitle(
 				conversation.id,
 				userId,
-				"  “Flag stale pipeline deals”  ",
+				"  “Flag stale rental contracts”  ",
 			),
-		).toEqual({ saved: true, title: "Flag stale pipeline deals" });
+		).toEqual({ saved: true, title: "Flag stale rental contracts" });
 		expect(
 			await setBuilderConversationTitle(
 				conversation.id,
 				userId,
 				"Replace the title",
 			),
-		).toEqual({ saved: false, title: "Flag stale pipeline deals" });
+		).toEqual({ saved: false, title: "Flag stale rental contracts" });
 	});
 
 	it("serializes concurrent file writes and draft saves", async () => {
@@ -302,7 +302,7 @@ describe("builder persistence", () => {
 		const revised = {
 			...original,
 			name: "Workspace health pulse",
-			description: "Report company and open-deal counts.",
+			description: "Report company and open-rental-contract counts.",
 		};
 		await writeBuilderArtifact(
 			conversation.id,

@@ -2,10 +2,11 @@
 
 import Building from "@carbon/icons-react/es/Building";
 import type { CarbonIconType } from "@carbon/icons-react/es/CarbonIcon";
+import CarFront from "@carbon/icons-react/es/CarFront";
 import Chat from "@carbon/icons-react/es/Chat";
 import Close from "@carbon/icons-react/es/Close";
 import Dashboard from "@carbon/icons-react/es/Dashboard";
-import Partnership from "@carbon/icons-react/es/Partnership";
+import DocumentSigned from "@carbon/icons-react/es/DocumentSigned";
 import Settings from "@carbon/icons-react/es/Settings";
 import UserMultiple from "@carbon/icons-react/es/UserMultiple";
 import { Button } from "@crm/ui/components/button";
@@ -54,7 +55,13 @@ const ITEMS: RailItem[] = [
 		icon: UserMultiple,
 		match: "prefix",
 	},
-	{ title: "Deals", href: "/deals", icon: Partnership, match: "prefix" },
+	{ title: "Vehicles", href: "/vehicles", icon: CarFront, match: "prefix" },
+	{
+		title: "Rental contracts",
+		href: "/rental-contracts",
+		icon: DocumentSigned,
+		match: "prefix",
+	},
 	{ title: "Settings", href: "/settings", icon: Settings, match: "prefix" },
 ];
 

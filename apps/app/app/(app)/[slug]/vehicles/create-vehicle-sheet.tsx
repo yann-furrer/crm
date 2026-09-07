@@ -1,0 +1,241 @@
+"use client";
+
+import Add from "@carbon/icons-react/es/Add";
+import { Button } from "@crm/ui/components/button";
+import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
+import { Icon } from "@crm/ui/components/icon";
+import { Input } from "@crm/ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@crm/ui/components/select";
+import {
+	Sheet,
+	SheetClose,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "@crm/ui/components/sheet";
+import { Spinner } from "@crm/ui/components/spinner";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { parseAsBoolean, useQueryState } from "nuqs";
+import { type ComponentProps, Suspense, useId, useState } from "react";
+import { toast } from "sonner";
+import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
+import { useCrmCache } from "@/lib/trpc/cache";
+import { useTRPC } from "@/lib/trpc/client";
+
+const UNSET = "";
+
+const TYPE_OPTIONS = [
+	{ value: "CAR", label: "Car" },
+	{ value: "MOTORCYCLE", label: "Motorcycle" },
+	{ value: "SCOOTER", label: "Scooter" },
+	{ value: "TRUCK", label: "Truck" },
+	{ value: "MINIBUS", label: "Minibus" },
+];
+
+function AddButton(props: ComponentProps<typeof Button>) {
+	return (
+		<Button {...props}>
+			<Icon icon={Add} data-icon="inline-start" />
+			New vehicle
+		</Button>
+	);
+}
+
+export function CreateVehicleSheet() {
+	return (
+		<Suspense fallback={<AddButton disabled />}>
+			<CreateVehicleForm />
+		</Suspense>
+	);
+}
+
+function CreateVehicleForm() {
+	const openRecord = useOpenRecord();
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+
+	const [open, setOpen] = useQueryState(
+		"new",
+		parseAsBoolean.withDefault(false),
+	);
+	const [type, setType] = useState("CAR");
+	const [make, setMake] = useState("");
+	const [model, setModel] = useState("");
+	const [plateNumber, setPlateNumber] = useState("");
+	const [ownerId, setOwnerId] = useState(UNSET);
+	const [dailyRate, setDailyRate] = useState("");
+
+	const makeId = useId();
+	const modelId = useId();
+	const plateId = useId();
+	const rateId = useId();
+
+	const users = useQuery(trpc.users.list.queryOptions());
+	const me = useQuery(trpc.users.me.queryOptions());
+
+	const resolvedOwner = ownerId || me.data?.id || UNSET;
+
+	const create = useMutation(
+		trpc.vehicles.create.mutationOptions({
+			onSuccess: async (vehicle) => {
+				await cache.vehicle(vehicle.id);
+				toast.success(`${vehicle.plateNumber} added.`);
+				await setOpen(null);
+				setMake("");
+				setModel("");
+				setPlateNumber("");
+				setDailyRate("");
+				openRecord({ kind: "vehicle", id: vehicle.id });
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const ready =
+		make.trim() !== "" &&
+		model.trim() !== "" &&
+		plateNumber.trim() !== "" &&
+		resolvedOwner !== UNSET;
+
+	return (
+		<Sheet open={open} onOpenChange={(next) => setOpen(next || null)}>
+			<SheetTrigger asChild>
+				<AddButton />
+			</SheetTrigger>
+			<SheetContent side="right">
+				<SheetHeader>
+					<SheetTitle>New vehicle</SheetTitle>
+					<SheetDescription>
+						Add it to the fleet with its plate number and a fleet manager.
+					</SheetDescription>
+				</SheetHeader>
+
+				<form
+					id="create-vehicle"
+					className="flex-1 overflow-y-auto px-4"
+					onSubmit={(event) => {
+						event.preventDefault();
+						const parsed = Number.parseFloat(dailyRate);
+						create.mutate({
+							type: type as never,
+							make,
+							model,
+							plateNumber,
+							ownerId: resolvedOwner,
+							dailyRateCents: Number.isFinite(parsed)
+								? Math.round(parsed * 100)
+								: null,
+						});
+					}}
+				>
+					<FieldGroup>
+						<Field>
+							<FieldLabel htmlFor="create-vehicle-type">Type</FieldLabel>
+							<Select value={type} onValueChange={setType}>
+								<SelectTrigger id="create-vehicle-type">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{TYPE_OPTIONS.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={makeId}>Make</FieldLabel>
+							<Input
+								id={makeId}
+								value={make}
+								onChange={(event) => setMake(event.target.value)}
+								placeholder="Toyota"
+								autoComplete="off"
+								required
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={modelId}>Model</FieldLabel>
+							<Input
+								id={modelId}
+								value={model}
+								onChange={(event) => setModel(event.target.value)}
+								placeholder="Corolla"
+								autoComplete="off"
+								required
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={plateId}>Plate number</FieldLabel>
+							<Input
+								id={plateId}
+								value={plateNumber}
+								onChange={(event) => setPlateNumber(event.target.value)}
+								placeholder="DK-1234-AA"
+								autoComplete="off"
+								required
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor="create-vehicle-owner">
+								Fleet manager
+							</FieldLabel>
+							<Select value={resolvedOwner} onValueChange={setOwnerId}>
+								<SelectTrigger id="create-vehicle-owner">
+									<SelectValue placeholder="Choose an owner" />
+								</SelectTrigger>
+								<SelectContent>
+									{(users.data ?? []).map((user) => (
+										<SelectItem key={user.id} value={user.id}>
+											{user.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={rateId}>Daily rate</FieldLabel>
+							<Input
+								id={rateId}
+								value={dailyRate}
+								onChange={(event) => setDailyRate(event.target.value)}
+								placeholder="45"
+								inputMode="decimal"
+								autoComplete="off"
+							/>
+						</Field>
+					</FieldGroup>
+				</form>
+
+				<SheetFooter>
+					<Button
+						type="submit"
+						form="create-vehicle"
+						disabled={create.isPending || !ready}
+					>
+						{create.isPending ? <Spinner /> : null}
+						Add vehicle
+					</Button>
+					<SheetClose asChild>
+						<Button variant="outline">Cancel</Button>
+					</SheetClose>
+				</SheetFooter>
+			</SheetContent>
+		</Sheet>
+	);
+}

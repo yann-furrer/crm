@@ -107,7 +107,7 @@ export function CompaniesBulkActions({
 				open={confirming}
 				onOpenChange={setConfirming}
 				title={`Delete ${companies(ids.length)}?`}
-				description="Their contacts stay, with no company. Deals on these companies go with them, and none of it can be undone."
+				description="Their contacts stay, with no company, and none of it can be undone."
 				onConfirm={() => remove.mutate({ ids })}
 			/>
 		</>

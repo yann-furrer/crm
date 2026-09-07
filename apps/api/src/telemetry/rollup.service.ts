@@ -1,7 +1,6 @@
 import {
 	ActivityType,
 	type Db,
-	DealStage,
 	EnrichmentStatus,
 	FactBand,
 	FactStatus,
@@ -452,11 +451,9 @@ export class RollupService {
 		const [
 			contacts,
 			companies,
-			deals,
 			activities,
 			contactSources,
 			companySources,
-			stages,
 			types,
 			syncs,
 			threads,
@@ -469,11 +466,9 @@ export class RollupService {
 		] = await Promise.all([
 			this.db.contact.count(),
 			this.db.company.count(),
-			this.db.deal.count(),
 			this.db.activity.count(),
 			this.db.contact.groupBy({ by: ["source"], _count: { _all: true } }),
 			this.db.company.groupBy({ by: ["source"], _count: { _all: true } }),
-			this.db.deal.groupBy({ by: ["stage"], _count: { _all: true } }),
 			this.db.activity.groupBy({ by: ["type"], _count: { _all: true } }),
 			this.db.mailboxSync.groupBy({ by: ["status"], _count: { _all: true } }),
 			this.db.emailThread.count({ where: { createdAt: { gte: since } } }),
@@ -502,7 +497,6 @@ export class RollupService {
 
 			contacts_bucket: bucket(contacts),
 			companies_bucket: bucket(companies),
-			deals_bucket: bucket(deals),
 			activities_bucket: bucket(activities),
 
 			contacts_by_source: countsOf(
@@ -518,10 +512,6 @@ export class RollupService {
 					count: row._count._all,
 				})),
 				Object.values(RecordSource),
-			),
-			deals_by_stage: countsOf(
-				stages.map((row) => ({ key: row.stage, count: row._count._all })),
-				Object.values(DealStage),
 			),
 			activities_by_type: countsOf(
 				types.map((row) => ({ key: row.type, count: row._count._all })),

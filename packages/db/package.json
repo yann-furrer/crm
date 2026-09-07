@@ -9,7 +9,6 @@
 		"./blob": "./src/blob.ts",
 		"./client": "./src/client.ts",
 		"./currency": "./src/currency.ts",
-		"./deal-stage": "./src/deal-stage.ts",
 		"./enums": "./src/generated/prisma/enums.ts",
 		"./favicon": "./src/favicon.ts",
 		"./fields": "./src/fields.ts",
@@ -17,6 +16,7 @@
 		"./fx": "./src/fx.ts",
 		"./images": "./src/images.ts",
 		"./idempotency": "./src/idempotency.ts",
+		"./rental-status": "./src/rental-status.ts",
 		"./safe-fetch": "./src/safe-fetch.ts",
 		"./settings": "./src/settings.ts",
 		"./workspace": "./src/workspace.ts"

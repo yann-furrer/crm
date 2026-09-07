@@ -54,7 +54,7 @@ export class RatesController {
 
 		if (!refresh.ok) return refresh;
 
-		const filled = await this.conversion.fillMissing();
+		const filled = await this.conversion.fillMissingEverywhere();
 
 		return { ...refresh, converted: filled.converted, missing: filled.missing };
 	}

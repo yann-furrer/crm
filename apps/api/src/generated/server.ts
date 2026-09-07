@@ -16,16 +16,21 @@ const publicProcedure = t.procedure;
 import { timelineInput, timelineCountsInput, myTasksInput, activityCreateInput, completeInput } from "../activities/activities.contracts";
 import { agentIdInput, agentHistoryInput, agentUpdateInput, agentDeployInput, agentRunNowInput } from "../agent/agents.contracts";
 import { companyListInput, companyIdInput, companyOptionsInput, companyCreateInput, companyUpdateArgs, companyBulkOwnerInput, companyBulkInput, setPrimaryContactInput } from "../companies/companies.contracts";
-import { contactListInput, contactIdInput, contactCreateInput, contactUpdateArgs, contactBulkOwnerInput, contactBulkCompanyInput, contactBulkInput, factDecisionInput } from "../contacts/contacts.contracts";
+import { contactListInput, contactIdInput, contactOptionsInput, contactCreateInput, contactUpdateArgs, contactBulkOwnerInput, contactBulkCompanyInput, contactBulkInput, factDecisionInput } from "../contacts/contacts.contracts";
 import { conversationListInput, builderResourceSearchInput, conversationIdInput, conversationEventsInput, conversationSaveInput, builderConversationCreateInput, builderConversationSubmitInput, builderQuestionResponseInput, builderResponseRatingInput, sharedConversationInput } from "../conversations/conversations.contracts";
 import { setReportingCurrencyInput, setManualRateInput, removeManualRateInput } from "../currency/currency.contracts";
 import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
-import { dealListInput, dealIdInput, dealCreateInput, dealUpdateArgs, setStageInput, dealContactsInput, dealAttachContactInput, dealDetachContactInput, dealContactRoleInput, dealBulkOwnerInput, dealBulkStageInput, dealBulkInput } from "../deals/deals.contracts";
 import { fieldListInput, fieldByKeyInput, fieldIdInput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput } from "../fields/fields.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
+import { incidentsByVehicleInput, incidentsByContractInput, incidentCreateInput, incidentUpdateArgs, incidentIdInput } from "../incidents/incidents.contracts";
+import { inspectionsByContractInput, inspectionCreateInput, inspectionIdInput } from "../inspections/inspections.contracts";
+import { maintenanceByVehicleInput, maintenanceCreateInput, maintenanceUpdateArgs, maintenanceIdInput } from "../maintenance/maintenance.contracts";
 import { setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
+import { paymentsByContractInput, paymentCreateInput, paymentUpdateArgs, paymentIdInput } from "../payments/payments.contracts";
+import { rentalContractListInput, rentalContractIdInput, rentalContractCreateInput, rentalContractUpdateArgs, setRentalContractStatusInput, recordPickupInput, recordReturnInput, setDepositStatusInput, rentalContractDriversInput, attachDriverInput, detachDriverInput, setDriverRoleInput, rentalContractBulkOwnerInput, rentalContractBulkInput } from "../rental-contracts/rental-contracts.contracts";
 import { setAgentModelInput, setResearchKeyInput } from "../settings/settings.contracts";
 import { ssoProviderListInput, registerSsoProviderInput, deleteSsoProviderInput } from "../sso/sso.contracts";
+import { vehicleListInput, vehicleIdInput, vehicleCreateInput, vehicleUpdateArgs, vehicleBulkOwnerInput, vehicleBulkStatusInput, vehicleBulkInput } from "../vehicles/vehicles.contracts";
 import { memberListInput, updateWorkspaceInput, setMemberRoleInput } from "../workspace/workspace.contracts";
 import type { ActivitiesRouter } from "../activities/activities.router";
 import type { AgentsRouter } from "../agent/agents.router";
@@ -34,14 +39,19 @@ import type { ContactsRouter } from "../contacts/contacts.router";
 import type { ConversationsRouter } from "../conversations/conversations.router";
 import type { CurrencyRouter } from "../currency/currency.router";
 import type { DashboardRouter } from "../dashboard/dashboard.router";
-import type { DealsRouter } from "../deals/deals.router";
 import type { FieldsRouter } from "../fields/fields.router";
 import type { GoogleRouter } from "../google/google.router";
+import type { IncidentsRouter } from "../incidents/incidents.router";
+import type { InspectionsRouter } from "../inspections/inspections.router";
+import type { MaintenanceRouter } from "../maintenance/maintenance.router";
 import type { MicrosoftRouter } from "../microsoft/microsoft.router";
+import type { PaymentsRouter } from "../payments/payments.router";
+import type { RentalContractsRouter } from "../rental-contracts/rental-contracts.router";
 import type { SearchRouter } from "../search/search.router";
 import type { SettingsRouter } from "../settings/settings.router";
 import type { SsoRouter } from "../sso/sso.router";
 import type { UsersRouter } from "../users/users.router";
+import type { VehiclesRouter } from "../vehicles/vehicles.router";
 import type { WorkspaceRouter } from "../workspace/workspace.router";
 
 const appRouter = t.router({
@@ -144,6 +154,9 @@ const appRouter = t.router({
     byId: publicProcedure
       .input(contactIdInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<ContactsRouter["byId"]>>),
+    options: publicProcedure
+      .input(contactOptionsInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<ContactsRouter["options"]>>),
     create: publicProcedure
       .input(contactCreateInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<ContactsRouter["create"]>>),
@@ -241,47 +254,6 @@ const appRouter = t.router({
       .input(dashboardSummaryInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DashboardRouter["summary"]>>)
     }),
-  deals: t.router({
-    list: publicProcedure
-      .input(dealListInput)
-      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["list"]>>),
-    byId: publicProcedure
-      .input(dealIdInput)
-      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["byId"]>>),
-    create: publicProcedure
-      .input(dealCreateInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["create"]>>),
-    update: publicProcedure
-      .input(dealUpdateArgs)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["update"]>>),
-    delete: publicProcedure
-      .input(dealIdInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["delete"]>>),
-    setStage: publicProcedure
-      .input(setStageInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["setStage"]>>),
-    contactOptions: publicProcedure
-      .input(dealContactsInput)
-      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["contactOptions"]>>),
-    attachContact: publicProcedure
-      .input(dealAttachContactInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["attachContact"]>>),
-    detachContact: publicProcedure
-      .input(dealDetachContactInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["detachContact"]>>),
-    setContactRole: publicProcedure
-      .input(dealContactRoleInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["setContactRole"]>>),
-    bulkAssignOwner: publicProcedure
-      .input(dealBulkOwnerInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["bulkAssignOwner"]>>),
-    bulkSetStage: publicProcedure
-      .input(dealBulkStageInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["bulkSetStage"]>>),
-    bulkDelete: publicProcedure
-      .input(dealBulkInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<DealsRouter["bulkDelete"]>>)
-    }),
   fields: t.router({
     list: publicProcedure
       .input(fieldListInput)
@@ -336,6 +308,48 @@ const appRouter = t.router({
       .input(calendarEventInput)
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<GoogleRouter["event"]>>)
     }),
+  incidents: t.router({
+    listByVehicle: publicProcedure
+      .input(incidentsByVehicleInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["listByVehicle"]>>),
+    listByContract: publicProcedure
+      .input(incidentsByContractInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["listByContract"]>>),
+    create: publicProcedure
+      .input(incidentCreateInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["create"]>>),
+    update: publicProcedure
+      .input(incidentUpdateArgs)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["update"]>>),
+    delete: publicProcedure
+      .input(incidentIdInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["delete"]>>)
+    }),
+  vehicleInspections: t.router({
+    listByContract: publicProcedure
+      .input(inspectionsByContractInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<InspectionsRouter["listByContract"]>>),
+    create: publicProcedure
+      .input(inspectionCreateInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<InspectionsRouter["create"]>>),
+    delete: publicProcedure
+      .input(inspectionIdInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<InspectionsRouter["delete"]>>)
+    }),
+  maintenanceRecords: t.router({
+    listByVehicle: publicProcedure
+      .input(maintenanceByVehicleInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MaintenanceRouter["listByVehicle"]>>),
+    create: publicProcedure
+      .input(maintenanceCreateInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MaintenanceRouter["create"]>>),
+    update: publicProcedure
+      .input(maintenanceUpdateArgs)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MaintenanceRouter["update"]>>),
+    delete: publicProcedure
+      .input(maintenanceIdInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MaintenanceRouter["delete"]>>)
+    }),
   microsoft: t.router({
     status: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MicrosoftRouter["status"]>>),
@@ -348,6 +362,67 @@ const appRouter = t.router({
     setAutoCreate: publicProcedure
       .input(setOutlookAutoCreateInput)
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<MicrosoftRouter["setAutoCreate"]>>)
+    }),
+  payments: t.router({
+    listByContract: publicProcedure
+      .input(paymentsByContractInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<PaymentsRouter["listByContract"]>>),
+    create: publicProcedure
+      .input(paymentCreateInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<PaymentsRouter["create"]>>),
+    update: publicProcedure
+      .input(paymentUpdateArgs)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<PaymentsRouter["update"]>>),
+    delete: publicProcedure
+      .input(paymentIdInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<PaymentsRouter["delete"]>>)
+    }),
+  rentalContracts: t.router({
+    list: publicProcedure
+      .input(rentalContractListInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["list"]>>),
+    byId: publicProcedure
+      .input(rentalContractIdInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["byId"]>>),
+    create: publicProcedure
+      .input(rentalContractCreateInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["create"]>>),
+    update: publicProcedure
+      .input(rentalContractUpdateArgs)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["update"]>>),
+    delete: publicProcedure
+      .input(rentalContractIdInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["delete"]>>),
+    setStatus: publicProcedure
+      .input(setRentalContractStatusInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["setStatus"]>>),
+    recordPickup: publicProcedure
+      .input(recordPickupInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["recordPickup"]>>),
+    recordReturn: publicProcedure
+      .input(recordReturnInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["recordReturn"]>>),
+    setDepositStatus: publicProcedure
+      .input(setDepositStatusInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["setDepositStatus"]>>),
+    driverOptions: publicProcedure
+      .input(rentalContractDriversInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["driverOptions"]>>),
+    attachDriver: publicProcedure
+      .input(attachDriverInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["attachDriver"]>>),
+    detachDriver: publicProcedure
+      .input(detachDriverInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["detachDriver"]>>),
+    setDriverRole: publicProcedure
+      .input(setDriverRoleInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["setDriverRole"]>>),
+    bulkAssignOwner: publicProcedure
+      .input(rentalContractBulkOwnerInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["bulkAssignOwner"]>>),
+    bulkDelete: publicProcedure
+      .input(rentalContractBulkInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<RentalContractsRouter["bulkDelete"]>>)
     }),
   search: t.router({
     quick: publicProcedure
@@ -388,6 +463,32 @@ const appRouter = t.router({
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<UsersRouter["me"]>>),
     list: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<UsersRouter["list"]>>)
+    }),
+  vehicles: t.router({
+    list: publicProcedure
+      .input(vehicleListInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["list"]>>),
+    byId: publicProcedure
+      .input(vehicleIdInput)
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["byId"]>>),
+    create: publicProcedure
+      .input(vehicleCreateInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["create"]>>),
+    update: publicProcedure
+      .input(vehicleUpdateArgs)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["update"]>>),
+    delete: publicProcedure
+      .input(vehicleIdInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["delete"]>>),
+    bulkAssignOwner: publicProcedure
+      .input(vehicleBulkOwnerInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["bulkAssignOwner"]>>),
+    bulkSetStatus: publicProcedure
+      .input(vehicleBulkStatusInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["bulkSetStatus"]>>),
+    bulkDelete: publicProcedure
+      .input(vehicleBulkInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<VehiclesRouter["bulkDelete"]>>)
     }),
   workspace: t.router({
     get: publicProcedure

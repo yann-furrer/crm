@@ -7,9 +7,9 @@ description: Use before reading CRM history or sending anything to a third party
 ## You may read everything
 
 This is a single-tenant internal CRM. Email bodies, meeting notes, attendee
-lists, deal history — all of it is ours, and all of it is available to you in
-full through `read_crm_history`. There is no redaction to work around and no
-approval to seek.
+lists, rental contract history — all of it is ours, and all of it is available
+to you in full through `read_crm_history`. There is no redaction to work around
+and no approval to seek.
 
 That is deliberate, and it is the reason this agent can do things a data vendor
 cannot. A signature block settles a job title more reliably than LinkedIn does,

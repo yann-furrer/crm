@@ -1,12 +1,16 @@
 import type { CarbonIcon } from "@crm/ui/components/icon";
 
-export type AgentRecordKind = "contact" | "company" | "deal";
+export type AgentRecordKind =
+	| "contact"
+	| "company"
+	| "vehicle"
+	| "rentalContract";
 
 export type AgentRecord = { kind: AgentRecordKind; id: string };
 
 type RecordCopy = {
 	header: string;
-	field: "contactId" | "companyId" | "dealId";
+	field: "contactId" | "companyId" | "vehicleId" | "rentalContractId";
 	title: string;
 	blurb: string;
 	placeholder: string;
@@ -40,17 +44,29 @@ const COPY: Record<AgentRecordKind, RecordCopy> = {
 			"What has changed recently?",
 		],
 	},
-	deal: {
-		header: "x-crm-deal",
-		field: "dealId",
-		title: "Ask about this deal",
+	vehicle: {
+		header: "x-crm-vehicle",
+		field: "vehicleId",
+		title: "Ask about this vehicle",
 		blurb:
-			"It can read the thread, the meetings and the people on both sides of it.",
-		placeholder: "Where has this stalled?",
+			"It can read its rental history, maintenance record and open incidents.",
+		placeholder: "When is this due for service?",
 		suggestions: [
-			"Where does this stand?",
-			"Who else should be involved?",
-			"What is the risk here?",
+			"When is this due for service?",
+			"How much has it earned this month?",
+			"Any open incidents on it?",
+		],
+	},
+	rentalContract: {
+		header: "x-crm-rental-contract",
+		field: "rentalContractId",
+		title: "Ask about this rental contract",
+		blurb: "It can read the vehicle, the renter and the payments on it.",
+		placeholder: "Is the deposit settled?",
+		suggestions: [
+			"Is the deposit settled?",
+			"Is this contract overdue?",
+			"What has this contract been paid so far?",
 		],
 	},
 };
@@ -66,7 +82,8 @@ export function recordHeader(record: AgentRecord): Record<string, string> {
 export function recordFilter(record: AgentRecord): {
 	contactId?: string;
 	companyId?: string;
-	dealId?: string;
+	vehicleId?: string;
+	rentalContractId?: string;
 } {
 	return { [COPY[record.kind].field]: record.id };
 }

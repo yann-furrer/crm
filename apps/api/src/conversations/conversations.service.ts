@@ -79,7 +79,10 @@ export class ConversationsService {
 				userId,
 				...(input.contactId ? { contactId: input.contactId } : {}),
 				...(input.companyId ? { companyId: input.companyId } : {}),
-				...(input.dealId ? { dealId: input.dealId } : {}),
+				...(input.vehicleId ? { vehicleId: input.vehicleId } : {}),
+				...(input.rentalContractId
+					? { rentalContractId: input.rentalContractId }
+					: {}),
 			},
 			orderBy: { lastMessageAt: "desc" },
 			take: 20,
@@ -179,7 +182,7 @@ export class ConversationsService {
 			? { contains: search, mode: "insensitive" as const }
 			: undefined;
 
-		const [companies, contacts, deals] = await Promise.all([
+		const [companies, contacts, vehicles, rentalContracts] = await Promise.all([
 			this.db.company.findMany({
 				where: contains ? { name: contains } : undefined,
 				orderBy: { lastActivityAt: { sort: "desc", nulls: "last" } },
@@ -207,14 +210,34 @@ export class ConversationsService {
 					company: { select: { name: true } },
 				},
 			}),
-			this.db.deal.findMany({
-				where: contains ? { name: contains } : undefined,
+			this.db.vehicle.findMany({
+				where: contains
+					? {
+							OR: [
+								{ plateNumber: contains },
+								{ make: contains },
+								{ model: contains },
+							],
+						}
+					: undefined,
+				orderBy: { lastActivityAt: { sort: "desc", nulls: "last" } },
+				take: 6,
+				select: { id: true, plateNumber: true, make: true, model: true },
+			}),
+			this.db.rentalContract.findMany({
+				where: contains
+					? {
+							contact: {
+								OR: [{ firstName: contains }, { lastName: contains }],
+							},
+						}
+					: undefined,
 				orderBy: { lastActivityAt: { sort: "desc", nulls: "last" } },
 				take: 6,
 				select: {
 					id: true,
-					name: true,
-					company: { select: { name: true, logoUrl: true } },
+					contact: { select: { firstName: true, lastName: true } },
+					vehicle: { select: { plateNumber: true } },
 				},
 			}),
 		]);
@@ -234,12 +257,22 @@ export class ConversationsService {
 				detail: contact.company?.name ?? contact.email,
 				imageUrl: contact.imageUrl,
 			})),
-			...deals.map((deal) => ({
-				kind: "deal" as const,
-				id: deal.id,
-				label: deal.name,
-				detail: deal.company.name,
-				imageUrl: deal.company.logoUrl,
+			...vehicles.map((vehicle) => ({
+				kind: "vehicle" as const,
+				id: vehicle.id,
+				label: `${vehicle.make} ${vehicle.model}`,
+				detail: vehicle.plateNumber,
+				imageUrl: null,
+			})),
+			...rentalContracts.map((contract) => ({
+				kind: "rentalContract" as const,
+				id: contract.id,
+				label:
+					[contract.contact.firstName, contract.contact.lastName]
+						.filter(Boolean)
+						.join(" ") || contract.vehicle.plateNumber,
+				detail: contract.vehicle.plateNumber,
+				imageUrl: null,
 			})),
 		];
 	}
@@ -766,7 +799,8 @@ export class ConversationsService {
 			userId: string;
 			contactId: string | null;
 			companyId: string | null;
-			dealId: string | null;
+			vehicleId: string | null;
+			rentalContractId: string | null;
 		}) => {
 			if (existing.userId !== userId || existing.kind !== "RECORD") {
 				throw new NotFoundException(
@@ -775,7 +809,10 @@ export class ConversationsService {
 			}
 
 			const existingRecordId =
-				existing.contactId ?? existing.companyId ?? existing.dealId;
+				existing.contactId ??
+				existing.companyId ??
+				existing.vehicleId ??
+				existing.rentalContractId;
 			if (existingRecordId !== recordId) {
 				throw new BadRequestException(
 					"A conversation cannot be moved to another CRM record.",
@@ -789,7 +826,8 @@ export class ConversationsService {
 					userId,
 					contactId: input.contactId ?? null,
 					companyId: input.companyId ?? null,
-					dealId: input.dealId ?? null,
+					vehicleId: input.vehicleId ?? null,
+					rentalContractId: input.rentalContractId ?? null,
 				},
 				data: {
 					continuationToken: input.continuationToken ?? null,
@@ -816,7 +854,8 @@ export class ConversationsService {
 				userId: true,
 				contactId: true,
 				companyId: true,
-				dealId: true,
+				vehicleId: true,
+				rentalContractId: true,
 			},
 		});
 		let conversation: { id: string };
@@ -835,7 +874,8 @@ export class ConversationsService {
 						userId,
 						contactId: input.contactId ?? null,
 						companyId: input.companyId ?? null,
-						dealId: input.dealId ?? null,
+						vehicleId: input.vehicleId ?? null,
+						rentalContractId: input.rentalContractId ?? null,
 					},
 					select: { id: true },
 				});
@@ -849,7 +889,8 @@ export class ConversationsService {
 						userId: true,
 						contactId: true,
 						companyId: true,
-						dealId: true,
+						vehicleId: true,
+						rentalContractId: true,
 					},
 				});
 				if (!winner) throw error;
@@ -928,16 +969,20 @@ export class ConversationsService {
 	private recordId(input: {
 		contactId?: string;
 		companyId?: string;
-		dealId?: string;
+		vehicleId?: string;
+		rentalContractId?: string;
 	}): string {
-		const recordIds = [input.contactId, input.companyId, input.dealId].filter(
-			(recordId): recordId is string => Boolean(recordId),
-		);
+		const recordIds = [
+			input.contactId,
+			input.companyId,
+			input.vehicleId,
+			input.rentalContractId,
+		].filter((recordId): recordId is string => Boolean(recordId));
 		const [recordId] = recordIds;
 
 		if (!recordId || recordIds.length !== 1) {
 			throw new BadRequestException(
-				"Choose exactly one contact, company or deal.",
+				"Choose exactly one contact, company, vehicle or rental contract.",
 			);
 		}
 

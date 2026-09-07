@@ -1,17 +1,19 @@
 import type { RecordKind } from "@/components/crm/record-sheet/record-stack";
 
-export type FieldEntity = "COMPANY" | "CONTACT" | "DEAL";
+export type FieldEntity = "COMPANY" | "CONTACT" | "VEHICLE" | "RENTAL_CONTRACT";
 
 const TO_ENTITY: Record<RecordKind, FieldEntity> = {
 	company: "COMPANY",
 	contact: "CONTACT",
-	deal: "DEAL",
+	vehicle: "VEHICLE",
+	rentalContract: "RENTAL_CONTRACT",
 };
 
 const TO_KIND: Record<FieldEntity, RecordKind> = {
 	COMPANY: "company",
 	CONTACT: "contact",
-	DEAL: "deal",
+	VEHICLE: "vehicle",
+	RENTAL_CONTRACT: "rentalContract",
 };
 
 export function entityOf(kind: RecordKind): FieldEntity {

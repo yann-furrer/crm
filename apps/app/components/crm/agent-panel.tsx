@@ -478,7 +478,12 @@ function useSavedConversation({
 	session,
 	messages,
 }: {
-	record: { contactId?: string; companyId?: string; dealId?: string };
+	record: {
+		contactId?: string;
+		companyId?: string;
+		vehicleId?: string;
+		rentalContractId?: string;
+	};
 	conversation: Conversation | null;
 	opening: React.RefObject<string | null>;
 	session: {
@@ -495,7 +500,7 @@ function useSavedConversation({
 	const sessionId = session?.sessionId ?? null;
 	const token = session?.continuationToken ?? null;
 	const streamIndex = session?.streamIndex ?? 0;
-	const { contactId, companyId, dealId } = record;
+	const { contactId, companyId, vehicleId, rentalContractId } = record;
 
 	const isNew = conversation === null || conversation.sessionId !== sessionId;
 
@@ -505,7 +510,8 @@ function useSavedConversation({
 			{
 				...(contactId ? { contactId } : {}),
 				...(companyId ? { companyId } : {}),
-				...(dealId ? { dealId } : {}),
+				...(vehicleId ? { vehicleId } : {}),
+				...(rentalContractId ? { rentalContractId } : {}),
 				sessionId: sessionId ?? "",
 				continuationToken: token,
 				streamIndex,

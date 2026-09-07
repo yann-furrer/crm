@@ -1,7 +1,6 @@
 "use client";
 
 import Add from "@carbon/icons-react/es/Add";
-import Partnership from "@carbon/icons-react/es/Partnership";
 import Star from "@carbon/icons-react/es/Star";
 import StarFilled from "@carbon/icons-react/es/StarFilled";
 import UserMultiple from "@carbon/icons-react/es/UserMultiple";
@@ -21,7 +20,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@crm/ui/components/tooltip";
-import { formatMoney } from "@crm/ui/lib/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AgentPanel } from "@/components/crm/agent-panel";
@@ -35,7 +33,6 @@ import {
 } from "@/components/crm/inline-field";
 import { OwnerCell } from "@/components/crm/owner-cell";
 import { CompanySocials } from "@/components/crm/social-links";
-import { DealStageMenu } from "@/components/crm/stage-change";
 import { Timeline } from "@/components/crm/timeline/timeline";
 import {
 	DetailSheetBody,
@@ -51,27 +48,18 @@ import {
 	DetailSheetStats,
 	type DetailSheetTab,
 } from "@/components/detail-sheet";
-import { LocalDay } from "@/components/local-date-time";
-import { OPEN_STAGES } from "@/lib/deal-stage";
 import { ENRICHMENT_POLL_MS, isEnriching } from "@/lib/enrichment-status";
 import { savingField } from "@/lib/pending-field";
 import { hasCompanyLinks } from "@/lib/social-links";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
-import { QuickAddContact, QuickAddDeal } from "./quick-add";
+import { QuickAddContact } from "./quick-add";
 import { RecordActions } from "./record-actions";
-import {
-	AddRow,
-	DealAmount,
-	DomainLink,
-	MetaLine,
-	RecordSheetFrame,
-} from "./record-parts";
+import { AddRow, DomainLink, MetaLine, RecordSheetFrame } from "./record-parts";
 import { useOpenRecord, useRecordSheetView } from "./record-stack";
 
 type Company = RouterOutputs["companies"]["byId"];
-type CompanyDeal = Company["deals"][number];
 
 const UNASSIGNED = "unassigned";
 
@@ -84,20 +72,14 @@ function pendingFields(company: Company): string[] {
 }
 
 function companyConsequence(company: Company): string {
-	const deals = company.deals.length;
 	const contacts = company.contacts.length;
-
-	const gone =
-		deals > 0
-			? `${deals === 1 ? "Its one deal" : `All ${deals} of its deals`} and everything filed against the account go too.`
-			: "Everything filed against the account goes too.";
 
 	const kept =
 		contacts > 0
-			? ` ${contacts === 1 ? "The one person" : `The ${contacts} people`} who work there stay in the CRM, without a company.`
+			? `${contacts === 1 ? "The one person" : `The ${contacts} people`} who work there stay in the CRM, without a company.`
 			: "";
 
-	return gone + kept;
+	return `Everything filed against the account goes too.${kept ? ` ${kept}` : ""}`;
 }
 
 const CONTACT_COLUMNS = [
@@ -107,27 +89,6 @@ const CONTACT_COLUMNS = [
 	{ id: "email", header: "Email", width: "w-[26%]" },
 	{ id: "owner", header: "Owner", width: "w-[22%]" },
 ];
-
-const DEAL_COLUMNS = [
-	{ id: "deal", header: "Deal", width: "w-[32%]", className: "pl-5" },
-	{ id: "stage", header: "Stage", width: "w-[24%]" },
-	{
-		id: "amount",
-		header: "Amount",
-		width: "w-[16%]",
-		align: "right" as const,
-	},
-	{ id: "close-date", header: "Close date", width: "w-[14%]" },
-	{ id: "owner", header: "Owner", width: "w-[14%]" },
-];
-
-function nextClose(deals: CompanyDeal[]): string | null {
-	const dates = deals
-		.map((deal) => deal.expectedCloseDate)
-		.filter((date): date is string => date !== null)
-		.sort();
-	return dates[0] ?? null;
-}
 
 export function CompanySheet({ companyId }: { companyId: string }) {
 	const trpc = useTRPC();
@@ -156,17 +117,6 @@ export function CompanySheet({ companyId }: { companyId: string }) {
 				.join(", ")
 		: null;
 
-	const openDeals =
-		company?.deals.filter((deal) => OPEN_STAGES.includes(deal.stage)) ?? [];
-	const openValueCents = openDeals.reduce(
-		(total, deal) => total + (deal.baseAmountCents ?? 0),
-		0,
-	);
-	const openUncounted = openDeals.filter(
-		(deal) => deal.amountCents !== null && deal.baseAmountCents === null,
-	).length;
-	const closing = nextClose(openDeals);
-
 	const tabs: DetailSheetTab[] = company
 		? [
 				{
@@ -191,19 +141,6 @@ export function CompanySheet({ companyId }: { companyId: string }) {
 							company={company}
 							adding={adding === "contact"}
 							onAdd={() => setAdding("contact")}
-							onDone={() => setAdding(null)}
-						/>
-					),
-				},
-				{
-					value: "deals",
-					label: "Deals",
-					count: company.deals.length,
-					content: (
-						<CompanyDeals
-							company={company}
-							adding={adding === "deal"}
-							onAdd={() => setAdding("deal")}
 							onDone={() => setAdding(null)}
 						/>
 					),
@@ -273,23 +210,6 @@ export function CompanySheet({ companyId }: { companyId: string }) {
 			stats={
 				company ? (
 					<DetailSheetStats>
-						<DetailSheetStat label="Open pipeline">
-							<span className="tabular-nums">
-								{formatMoney(openValueCents, company.reportingCurrency)}
-							</span>
-							{openUncounted > 0 ? (
-								<span className="text-muted-foreground">
-									{" "}
-									+{openUncounted} unconverted
-								</span>
-							) : null}
-						</DetailSheetStat>
-						<DetailSheetStat label="Open deals">
-							<span className="tabular-nums">{openDeals.length}</span>
-						</DetailSheetStat>
-						<DetailSheetStat label="Next close">
-							{closing ? <LocalDay date={closing} /> : <EmptyCellValue />}
-						</DetailSheetStat>
 						<DetailSheetStat label="Owner">
 							<OwnerCell owner={company.owner} />
 						</DetailSheetStat>
@@ -566,94 +486,6 @@ function CompanyContacts({
 				<AddRow
 					label="Add contact"
 					columns={CONTACT_COLUMNS.length}
-					onClick={onAdd}
-				/>
-			</SimpleTable>
-		</>
-	);
-}
-
-function CompanyDeals({
-	company,
-	adding,
-	onAdd,
-	onDone,
-}: {
-	company: Company;
-	adding: boolean;
-	onAdd: () => void;
-	onDone: () => void;
-}) {
-	const openRecord = useOpenRecord();
-
-	const form = adding ? (
-		<QuickAddDeal
-			companyId={company.id}
-			companyName={company.name}
-			ownerId={company.owner?.id ?? null}
-			onDone={onDone}
-		/>
-	) : null;
-
-	if (company.deals.length === 0) {
-		return (
-			<>
-				{form}
-				{adding ? null : (
-					<DetailSheetEmpty
-						icon={Partnership}
-						title="No deals yet"
-						description={`Nothing is being sold to ${company.name} right now. Open one and it joins the pipeline and the forecast.`}
-						action={
-							<Button variant="outline" size="sm" onClick={onAdd}>
-								<Icon icon={Add} data-icon="inline-start" />
-								New deal
-							</Button>
-						}
-					/>
-				)}
-			</>
-		);
-	}
-
-	return (
-		<>
-			{form}
-			<SimpleTable variant="panel" columns={DEAL_COLUMNS}>
-				{company.deals.map((deal) => (
-					<SimpleTableRow
-						key={deal.id}
-						clickable
-						onClick={() => openRecord({ kind: "deal", id: deal.id })}
-					>
-						<TableCell className="truncate py-2.5 pr-3 pl-5 font-medium">
-							{deal.name}
-						</TableCell>
-						<TableCell className="px-3 py-2.5">
-							<DealStageMenu dealId={deal.id} stage={deal.stage} />
-						</TableCell>
-						<TableCell className="px-3 py-2.5 text-right">
-							<DealAmount
-								amountCents={deal.amountCents}
-								currency={deal.currency}
-							/>
-						</TableCell>
-						<TableCell className="px-3 py-2.5 text-muted-foreground">
-							{deal.expectedCloseDate ? (
-								<LocalDay date={deal.expectedCloseDate} />
-							) : (
-								<EmptyCellValue />
-							)}
-						</TableCell>
-						<TableCell className="px-3 py-2.5">
-							<OwnerCell owner={deal.owner} />
-						</TableCell>
-					</SimpleTableRow>
-				))}
-
-				<AddRow
-					label="New deal"
-					columns={DEAL_COLUMNS.length}
 					onClick={onAdd}
 				/>
 			</SimpleTable>

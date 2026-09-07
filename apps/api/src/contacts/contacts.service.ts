@@ -59,6 +59,33 @@ const COMPANY_SELECT = {
 	logoUrl: true,
 } as const;
 
+const RENTAL_CONTRACT_SELECT = {
+	id: true,
+	status: true,
+	startDate: true,
+	endDate: true,
+	totalAmount: true,
+	currency: true,
+	vehicle: {
+		select: { id: true, plateNumber: true, make: true, model: true },
+	},
+} as const;
+
+type ContactRentalContractRow = Prisma.RentalContractGetPayload<{
+	select: typeof RENTAL_CONTRACT_SELECT;
+}>;
+
+function serializeRentalContract(contract: ContactRentalContractRow) {
+	const { totalAmount, startDate, endDate, ...rest } = contract;
+
+	return {
+		...rest,
+		totalAmountCents: toCents(totalAmount),
+		startDate: startDate.toISOString(),
+		endDate: endDate.toISOString(),
+	};
+}
+
 const NO_COMPANY = "none";
 
 const FACT_COLUMNS: Record<string, string | undefined> = {
@@ -120,6 +147,21 @@ export class ContactsService {
 		private readonly stamp: ActivityStampService,
 		private readonly fields: FieldsService,
 	) {}
+
+	async options(q: string) {
+		return this.db.contact.findMany({
+			where: this.searchFilter(q),
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				email: true,
+				imageUrl: true,
+			},
+			orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+			take: 100,
+		});
+	}
 
 	async list(input: ContactListInput): Promise<ListResult<ContactRow>> {
 		const where = this.buildWhere(input);
@@ -212,21 +254,12 @@ export class ContactsService {
 					select: { ...COMPANY_SELECT, industry: true, primaryContactId: true },
 				},
 				owner: { select: OWNER_SELECT },
-				deals: {
-					select: {
-						role: true,
-						deal: {
-							select: {
-								id: true,
-								name: true,
-								stage: true,
-								amount: true,
-								currency: true,
-								expectedCloseDate: true,
-								owner: { select: OWNER_SELECT },
-							},
-						},
-					},
+				rentalContracts: {
+					orderBy: { startDate: "desc" },
+					select: RENTAL_CONTRACT_SELECT,
+				},
+				driverOn: {
+					select: { role: true, contract: { select: RENTAL_CONTRACT_SELECT } },
 				},
 			},
 		});
@@ -240,7 +273,25 @@ export class ContactsService {
 			contact.company?.id ?? null,
 		);
 
-		const { deals, createdAt, brief, facts, company, ...rest } = contact;
+		const {
+			rentalContracts,
+			driverOn,
+			createdAt,
+			brief,
+			facts,
+			company,
+			...rest
+		} = contact;
+
+		const asPrimary = rentalContracts.map((contract) => ({
+			...serializeRentalContract(contract),
+			role: "PRIMARY" as const,
+		}));
+
+		const asDriver = driverOn.map(({ role, contract }) => ({
+			...serializeRentalContract(contract),
+			role,
+		}));
 
 		return {
 			...rest,
@@ -262,13 +313,9 @@ export class ContactsService {
 			})),
 			relationship,
 			isPrimaryContact: company?.primaryContactId === contact.id,
-			deals: deals.map(({ role, deal }) => ({
-				...deal,
-				role,
-				amount: undefined,
-				amountCents: toCents(deal.amount),
-				expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
-			})),
+			rentalContracts: [...asPrimary, ...asDriver].sort((a, b) =>
+				b.startDate.localeCompare(a.startDate),
+			),
 		};
 	}
 

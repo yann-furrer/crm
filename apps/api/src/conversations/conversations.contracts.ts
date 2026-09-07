@@ -3,17 +3,25 @@ import { z } from "zod";
 const recordShape = {
 	contactId: z.string().trim().min(1).optional(),
 	companyId: z.string().trim().min(1).optional(),
-	dealId: z.string().trim().min(1).optional(),
+	vehicleId: z.string().trim().min(1).optional(),
+	rentalContractId: z.string().trim().min(1).optional(),
 };
 
 const hasExactlyOneRecord = (input: {
 	contactId?: string;
 	companyId?: string;
-	dealId?: string;
+	vehicleId?: string;
+	rentalContractId?: string;
 }) =>
-	[input.contactId, input.companyId, input.dealId].filter(Boolean).length === 1;
+	[
+		input.contactId,
+		input.companyId,
+		input.vehicleId,
+		input.rentalContractId,
+	].filter(Boolean).length === 1;
 
-const recordMessage = "Choose exactly one contact, company or deal.";
+const recordMessage =
+	"Choose exactly one contact, company, vehicle or rental contract.";
 
 export const conversationListInput = z
 	.object(recordShape)
@@ -44,7 +52,13 @@ export const conversationEventsInput = z.object({
 export type ConversationEventsInput = z.infer<typeof conversationEventsInput>;
 
 export const builderResource = z.object({
-	kind: z.enum(["integration", "company", "contact", "deal"]),
+	kind: z.enum([
+		"integration",
+		"company",
+		"contact",
+		"vehicle",
+		"rentalContract",
+	]),
 	id: z.string().trim().min(1).max(160),
 	label: z.string().trim().min(1).max(120),
 	detail: z.string().trim().max(160).nullable().optional(),

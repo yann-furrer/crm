@@ -22,8 +22,15 @@ export function usePrefetchRecord() {
 						trpc.contacts.byId.queryOptions({ id }),
 					);
 					return;
-				case "deal":
-					void queryClient.prefetchQuery(trpc.deals.byId.queryOptions({ id }));
+				case "vehicle":
+					void queryClient.prefetchQuery(
+						trpc.vehicles.byId.queryOptions({ id }),
+					);
+					return;
+				case "rentalContract":
+					void queryClient.prefetchQuery(
+						trpc.rentalContracts.byId.queryOptions({ id }),
+					);
 					return;
 			}
 		},

@@ -164,9 +164,7 @@ describe("builder command routing", () => {
 		expect(chat).toContain("Do not call agent_builder");
 		expect(chat).toContain("call ask_question");
 		expect(chat).toContain("one focused follow-up");
-		expect(chat).toContain(
-			"Do not restate or enumerate individual deal rows in prose, bullets, or tables",
-		);
+		expect(chat).toContain("list_rental_contracts");
 		expect(builderTaskMarkdown(null)).toContain("private CRM assistant chat");
 	});
 
@@ -332,14 +330,16 @@ describe("agent builder draft input", () => {
 			name: "Renewal prep",
 			description: "Prepare a renewal call brief.",
 			instructions:
-				"Run manually. Read the selected deal and summarize renewal risks for review.",
+				"Run manually. Read the selected rental contract and summarize renewal risks for review.",
 			trigger: {
 				type: "MANUAL",
 				name: "Prepare renewal brief",
 				summary: "Run before a renewal call",
 			},
 			recordScope: "SELECTED",
-			resources: [{ kind: "deal", id: "deal-1", label: "Acme renewal" }],
+			resources: [
+				{ kind: "rentalContract", id: "contract-1", label: "Acme renewal" },
+			],
 			integrations: ["gmail", "calendar"],
 			actions: [
 				{
@@ -352,7 +352,7 @@ describe("agent builder draft input", () => {
 
 		expect(draftInputFromTool(parsed)).toMatchObject({
 			resources: [
-				{ kind: "deal", id: "deal-1", label: "Acme renewal" },
+				{ kind: "rentalContract", id: "contract-1", label: "Acme renewal" },
 				{ kind: "integration", id: "google:gmail", label: "Gmail" },
 				{
 					kind: "integration",
@@ -373,7 +373,7 @@ describe("agent builder draft input", () => {
 			name: "Renewal prep",
 			description: "Prepare a renewal call brief.",
 			instructions:
-				"Run manually. Read the selected deal and summarize renewal risks for review.",
+				"Run manually. Read the selected rental contract and summarize renewal risks for review.",
 			trigger: {
 				type: "MANUAL",
 				name: "Prepare renewal brief",
@@ -397,7 +397,7 @@ describe("agent builder draft input", () => {
 				name: "Renewal prep",
 				description: "Prepare a renewal call brief.",
 				instructions:
-					"Run manually. Read workspace deals and summarize renewal risks for review.",
+					"Run manually. Read workspace rental contracts and summarize renewal risks for review.",
 				trigger: {
 					type: "MANUAL",
 					name: "Prepare renewal brief",
@@ -422,7 +422,7 @@ describe("agent builder draft input", () => {
 			name: "Renewal prep",
 			description: "Prepare a renewal call brief.",
 			instructions:
-				"Run manually. Read workspace deals and summarize renewal risks for review.",
+				"Run manually. Read workspace rental contracts and summarize renewal risks for review.",
 			recordScope: "WORKSPACE" as const,
 			resources: [],
 			integrations: [],
@@ -466,7 +466,7 @@ describe("agent builder draft access", () => {
 			name: "Handoff",
 			description: "Hand new customers to onboarding.",
 			instructions:
-				"Run on demand. Read closed-won deals and record the handoff for onboarding.",
+				"Run on demand. Read completed rental contracts and record the handoff for onboarding.",
 			trigger: {
 				type: "MANUAL",
 				name: "Run handoff",

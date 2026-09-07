@@ -43,16 +43,17 @@ export type CompanyPerson = {
 	needsIdentity: boolean;
 };
 
-export type CompanyDeal = {
+export type CompanyRentalContract = {
 	id: string;
-	name: string;
-	stage: string;
+	vehicle: string;
+	status: string;
 	open: boolean;
-	amount: number | null;
+	totalAmount: number | null;
 	currency: string;
-	expectedCloseDate: string | null;
+	startDate: string;
+	endDate: string;
 	lastActivityAt: string | null;
-	contacts: { id: string; name: string; role: string | null }[];
+	renter: { id: string; name: string };
 };
 
 export type CompanyHistory = {
@@ -68,13 +69,13 @@ export type CompanyHistory = {
 		enrichmentStatus: string;
 	};
 	people: CompanyPerson[];
-	deals: CompanyDeal[];
+	rentalContracts: CompanyRentalContract[];
 	threads: AccountThread[];
 	meetings: AccountMeeting[];
 	notes: AccountNote[];
 	stats: {
 		people: number;
-		openDeals: number;
+		openRentalContracts: number;
 		emails: number;
 		meetings: number;
 		theyReplied: boolean;
@@ -117,123 +118,124 @@ export async function readCompanyHistory(
 
 	const belongsToCompany = { OR: [{ companyId }, { contact: { companyId } }] };
 
-	const [people, deals, threads, meetings, notes, lastInbound, counts] =
-		await Promise.all([
-			db.contact.findMany({
-				where: { companyId },
-				orderBy: [{ lastActivityAt: "desc" }, { createdAt: "asc" }],
-				take: options.people ?? 25,
-				select: {
-					id: true,
-					firstName: true,
-					lastName: true,
-					title: true,
-					email: true,
-					linkedinUrl: true,
-					lastActivityAt: true,
-					_count:
-						includeEmail || includeCalendar
-							? {
-									select: {
-										emailThreads: includeEmail,
-										calendarEvents: includeCalendar,
-									},
-								}
-							: false,
-				},
-			}),
-			db.deal.findMany({
-				where: { companyId },
-				orderBy: [{ lastActivityAt: "desc" }, { createdAt: "desc" }],
-				take: 20,
-				select: {
-					id: true,
-					name: true,
-					stage: true,
-					amount: true,
-					currency: true,
-					expectedCloseDate: true,
-					lastActivityAt: true,
-					contacts: {
-						select: {
-							role: true,
-							contact: {
-								select: { id: true, firstName: true, lastName: true },
+	const [
+		people,
+		rentalContracts,
+		threads,
+		meetings,
+		notes,
+		lastInbound,
+		counts,
+	] = await Promise.all([
+		db.contact.findMany({
+			where: { companyId },
+			orderBy: [{ lastActivityAt: "desc" }, { createdAt: "asc" }],
+			take: options.people ?? 25,
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				title: true,
+				email: true,
+				linkedinUrl: true,
+				lastActivityAt: true,
+				_count:
+					includeEmail || includeCalendar
+						? {
+								select: {
+									emailThreads: includeEmail,
+									calendarEvents: includeCalendar,
+								},
+							}
+						: false,
+			},
+		}),
+		db.rentalContract.findMany({
+			where: { contact: { companyId } },
+			orderBy: [{ lastActivityAt: "desc" }, { createdAt: "desc" }],
+			take: 20,
+			select: {
+				id: true,
+				status: true,
+				totalAmount: true,
+				currency: true,
+				startDate: true,
+				endDate: true,
+				lastActivityAt: true,
+				vehicle: { select: { make: true, model: true, plateNumber: true } },
+				contact: { select: { id: true, firstName: true, lastName: true } },
+			},
+		}),
+		includeEmail
+			? db.emailThread.findMany({
+					where: belongsToCompany,
+					orderBy: { lastMessageAt: "desc" },
+					take: options.threads ?? 5,
+					select: {
+						subject: true,
+						messageCount: true,
+						lastMessageAt: true,
+						contact: {
+							select: { id: true, firstName: true, lastName: true },
+						},
+						messages: {
+							orderBy: { sentAt: "desc" },
+							take: options.messagesPerThread ?? 4,
+							select: {
+								direction: true,
+								fromEmail: true,
+								fromName: true,
+								sentAt: true,
+								body: true,
+								snippet: true,
 							},
 						},
 					},
-				},
-			}),
+				})
+			: Promise.resolve([]),
+		includeCalendar
+			? db.calendarEvent.findMany({
+					where: {
+						OR: [
+							{ companyId },
+							{ contact: { companyId } },
+							{ attendees: { some: { contact: { companyId } } } },
+						],
+					},
+					orderBy: { startsAt: "desc" },
+					take: 10,
+					select: {
+						title: true,
+						startsAt: true,
+						attendees: { select: { email: true, name: true } },
+					},
+				})
+			: Promise.resolve([]),
+		recentNotes({ companyId }),
+		includeEmail
+			? db.emailMessage.findFirst({
+					where: {
+						direction: EmailDirection.INBOUND,
+						thread: belongsToCompany,
+					},
+					orderBy: { sentAt: "desc" },
+					select: { sentAt: true, fromEmail: true, fromName: true },
+				})
+			: Promise.resolve(null),
+		Promise.all([
+			db.contact.count({ where: { companyId } }),
 			includeEmail
-				? db.emailThread.findMany({
-						where: belongsToCompany,
-						orderBy: { lastMessageAt: "desc" },
-						take: options.threads ?? 5,
-						select: {
-							subject: true,
-							messageCount: true,
-							lastMessageAt: true,
-							contact: {
-								select: { id: true, firstName: true, lastName: true },
-							},
-							messages: {
-								orderBy: { sentAt: "desc" },
-								take: options.messagesPerThread ?? 4,
-								select: {
-									direction: true,
-									fromEmail: true,
-									fromName: true,
-									sentAt: true,
-									body: true,
-									snippet: true,
-								},
-							},
-						},
-					})
-				: Promise.resolve([]),
+				? db.emailMessage.count({ where: { thread: belongsToCompany } })
+				: Promise.resolve(0),
 			includeCalendar
-				? db.calendarEvent.findMany({
+				? db.calendarEvent.count({
 						where: {
-							OR: [
-								{ companyId },
-								{ contact: { companyId } },
-								{ attendees: { some: { contact: { companyId } } } },
-							],
-						},
-						orderBy: { startsAt: "desc" },
-						take: 10,
-						select: {
-							title: true,
-							startsAt: true,
-							attendees: { select: { email: true, name: true } },
+							OR: [{ companyId }, { contact: { companyId } }],
 						},
 					})
-				: Promise.resolve([]),
-			recentNotes({ companyId }),
-			includeEmail
-				? db.emailMessage.findFirst({
-						where: {
-							direction: EmailDirection.INBOUND,
-							thread: belongsToCompany,
-						},
-						orderBy: { sentAt: "desc" },
-						select: { sentAt: true, fromEmail: true, fromName: true },
-					})
-				: Promise.resolve(null),
-			Promise.all([
-				db.contact.count({ where: { companyId } }),
-				includeEmail
-					? db.emailMessage.count({ where: { thread: belongsToCompany } })
-					: Promise.resolve(0),
-				includeCalendar
-					? db.calendarEvent.count({
-							where: {
-								OR: [{ companyId }, { contact: { companyId } }],
-							},
-						})
-					: Promise.resolve(0),
-			]),
-		]);
+				: Promise.resolve(0),
+		]),
+	]);
 
 	const [peopleCount, emailCount, meetingCount] = counts;
 	const now = new Date();
@@ -267,13 +269,15 @@ export async function readCompanyHistory(
 				person.lastName,
 			),
 		})),
-		deals: deals.map(toCompanyDeal),
+		rentalContracts: rentalContracts.map(toCompanyRentalContract),
 		threads: threads.map(toAccountThread),
 		meetings: meetings.map((meeting) => toAccountMeeting(meeting, now)),
 		notes,
 		stats: {
 			people: peopleCount,
-			openDeals: deals.filter((deal) => isOpen(deal.stage)).length,
+			openRentalContracts: rentalContracts.filter((contract) =>
+				isOpenStatus(contract.status),
+			).length,
 			emails: emailCount,
 			meetings: meetingCount,
 			theyReplied: lastInbound !== null,
@@ -290,32 +294,39 @@ export async function readCompanyHistory(
 	};
 }
 
-export type DealHistory = {
-	deal: {
+export type RentalContractHistory = {
+	rentalContract: {
 		id: string;
-		name: string;
-		description: string | null;
-		stage: string;
+		status: string;
 		open: boolean;
-		daysInStage: number;
-		stageChangedAt: string;
-		amount: number | null;
+		daysInStatus: number;
+		channel: string;
+		startDate: string;
+		endDate: string;
+		totalAmount: number | null;
 		currency: string;
-		expectedCloseDate: string | null;
-		closedAt: string | null;
-		closedReason: string | null;
+		depositAmount: number | null;
+		depositStatus: string;
+		cancelledAt: string | null;
+		cancelledReason: string | null;
 		owner: string | null;
 		createdAt: string;
 	};
-	company: { id: string; name: string; domain: string | null };
+	vehicle: {
+		id: string;
+		make: string;
+		model: string;
+		plateNumber: string;
+		status: string;
+	};
 	people: {
 		id: string;
 		name: string;
 		title: string | null;
 		email: string | null;
-		role: string | null;
+		role: string;
 	}[];
-	stageHistory: { from: string | null; to: string | null; at: string }[];
+	statusHistory: { from: string | null; to: string | null; at: string }[];
 	threads: AccountThread[];
 	meetings: AccountMeeting[];
 	notes: AccountNote[];
@@ -329,33 +340,51 @@ export type DealHistory = {
 	note: string;
 };
 
-export async function readDealHistory(
-	dealId: string,
+export async function readRentalContractHistory(
+	rentalContractId: string,
 	options: {
 		threads?: number;
 		messagesPerThread?: number;
 		includeEmail?: boolean;
 		includeCalendar?: boolean;
 	} = {},
-): Promise<DealHistory | null> {
-	const deal = await db.deal.findUnique({
-		where: { id: dealId },
+): Promise<RentalContractHistory | null> {
+	const contract = await db.rentalContract.findUnique({
+		where: { id: rentalContractId },
 		select: {
 			id: true,
-			name: true,
-			description: true,
-			stage: true,
-			stageChangedAt: true,
-			amount: true,
+			status: true,
+			channel: true,
+			startDate: true,
+			endDate: true,
+			totalAmount: true,
 			currency: true,
-			expectedCloseDate: true,
-			closedAt: true,
-			closedReason: true,
+			depositAmount: true,
+			depositStatus: true,
+			cancelledAt: true,
+			cancelledReason: true,
 			lastActivityAt: true,
 			createdAt: true,
 			owner: { select: { name: true, email: true } },
-			company: { select: { id: true, name: true, domain: true } },
-			contacts: {
+			vehicle: {
+				select: {
+					id: true,
+					make: true,
+					model: true,
+					plateNumber: true,
+					status: true,
+				},
+			},
+			contact: {
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					title: true,
+					email: true,
+				},
+			},
+			drivers: {
 				select: {
 					role: true,
 					contact: {
@@ -372,26 +401,21 @@ export async function readDealHistory(
 		},
 	});
 
-	if (!deal) return null;
+	if (!contract) return null;
 	const includeEmail = options.includeEmail ?? true;
 	const includeCalendar = options.includeCalendar ?? true;
 
-	const contactIds = deal.contacts.map(({ contact }) => contact.id);
+	const contactIds = [
+		contract.contact.id,
+		...contract.drivers.map(({ contact }) => contact.id),
+	].filter((id, index, all) => all.indexOf(id) === index);
 
-	const relatedThreads =
-		contactIds.length > 0
-			? {
-					OR: [
-						{ contactId: { in: contactIds } },
-						{ companyId: deal.company.id },
-					],
-				}
-			: { companyId: deal.company.id };
+	const relatedThreads = { contactId: { in: contactIds } };
 
-	const [stageChanges, threads, meetings, notes, lastInbound] =
+	const [statusChanges, threads, meetings, notes, lastInbound] =
 		await Promise.all([
 			db.activity.findMany({
-				where: { dealId, type: ActivityType.STAGE_CHANGE },
+				where: { rentalContractId, type: ActivityType.STAGE_CHANGE },
 				orderBy: { createdAt: "asc" },
 				take: 25,
 				select: { meta: true, createdAt: true },
@@ -425,18 +449,12 @@ export async function readDealHistory(
 				: Promise.resolve([]),
 			includeCalendar
 				? db.calendarEvent.findMany({
-						where:
-							contactIds.length > 0
-								? {
-										OR: [
-											{ contactId: { in: contactIds } },
-											{
-												attendees: { some: { contactId: { in: contactIds } } },
-											},
-											{ companyId: deal.company.id },
-										],
-									}
-								: { companyId: deal.company.id },
+						where: {
+							OR: [
+								{ contactId: { in: contactIds } },
+								{ attendees: { some: { contactId: { in: contactIds } } } },
+							],
+						},
 						orderBy: { startsAt: "desc" },
 						take: 10,
 						select: {
@@ -446,7 +464,7 @@ export async function readDealHistory(
 						},
 					})
 				: Promise.resolve([]),
-			recentNotes({ dealId }),
+			recentNotes({ rentalContractId }),
 			includeEmail
 				? db.emailMessage.findFirst({
 						where: {
@@ -460,33 +478,45 @@ export async function readDealHistory(
 		]);
 
 	const now = new Date();
+	const statusChangedAt = statusChanges.at(-1)?.createdAt ?? contract.createdAt;
 
 	return {
-		deal: {
-			id: deal.id,
-			name: deal.name,
-			description: deal.description,
-			stage: deal.stage,
-			open: isOpen(deal.stage),
-			daysInStage: daysSince(deal.stageChangedAt, now),
-			stageChangedAt: deal.stageChangedAt.toISOString(),
-			amount: deal.amount === null ? null : Number(deal.amount),
-			currency: deal.currency,
-			expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
-			closedAt: deal.closedAt?.toISOString() ?? null,
-			closedReason: deal.closedReason,
-			owner: deal.owner?.name ?? deal.owner?.email ?? null,
-			createdAt: deal.createdAt.toISOString(),
+		rentalContract: {
+			id: contract.id,
+			status: contract.status,
+			open: isOpenStatus(contract.status),
+			daysInStatus: daysSince(statusChangedAt, now),
+			channel: contract.channel,
+			startDate: contract.startDate.toISOString(),
+			endDate: contract.endDate.toISOString(),
+			totalAmount:
+				contract.totalAmount === null ? null : Number(contract.totalAmount),
+			currency: contract.currency,
+			depositAmount: Number(contract.depositAmount),
+			depositStatus: contract.depositStatus,
+			cancelledAt: contract.cancelledAt?.toISOString() ?? null,
+			cancelledReason: contract.cancelledReason,
+			owner: contract.owner?.name ?? contract.owner?.email ?? null,
+			createdAt: contract.createdAt.toISOString(),
 		},
-		company: deal.company,
-		people: deal.contacts.map(({ role, contact }) => ({
-			id: contact.id,
-			name: fullName(contact),
-			title: contact.title,
-			email: contact.email,
-			role,
-		})),
-		stageHistory: stageChanges.map((change) => {
+		vehicle: contract.vehicle,
+		people: [
+			{
+				id: contract.contact.id,
+				name: fullName(contract.contact),
+				title: contract.contact.title,
+				email: contract.contact.email,
+				role: "PRIMARY",
+			},
+			...contract.drivers.map(({ role, contact }) => ({
+				id: contact.id,
+				name: fullName(contact),
+				title: contact.title,
+				email: contact.email,
+				role,
+			})),
+		],
+		statusHistory: statusChanges.map((change) => {
 			const meta = (change.meta ?? {}) as { from?: unknown; to?: unknown };
 			return {
 				from: typeof meta.from === "string" ? meta.from : null,
@@ -508,29 +538,23 @@ export async function readDealHistory(
 					.filter((meeting) => meeting.startsAt > now)
 					.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0]
 					?.startsAt.toISOString() ?? null,
-			daysSinceLastActivity: deal.lastActivityAt
-				? daysSince(deal.lastActivityAt, now)
+			daysSinceLastActivity: contract.lastActivityAt
+				? daysSince(contract.lastActivityAt, now)
 				: null,
 		},
 		note:
 			includeEmail || includeCalendar
-				? contactIds.length > 0
-					? "Connected account history is filed against people and companies, never against a deal. The history here belongs to the people on this deal and the rest of the account — read the details before treating any of it as being about this deal."
-					: "Nobody is attached to this deal, so the correspondence here is the whole account's. Attaching the people on it would make this answer sharper."
+				? "Connected account history is filed against people, never against a rental contract. The history here belongs to the renter and any additional drivers on it — read the details before treating any of it as being about this contract."
 				: "Connected email and calendar history are outside this agent version's approved data sources.",
 	};
 }
 
-function isOpen(stage: string): boolean {
-	return (
-		stage !== "CLOSED_WON" &&
-		stage !== "CLOSED_LOST" &&
-		stage !== "UNQUALIFIED_TO_BUY"
-	);
+function isOpenStatus(status: string): boolean {
+	return status === "DRAFT" || status === "RESERVED" || status === "ACTIVE";
 }
 
 async function recentNotes(
-	where: { companyId: string } | { dealId: string },
+	where: { companyId: string } | { rentalContractId: string },
 ): Promise<AccountNote[]> {
 	const rows = await db.activity.findMany({
 		where: {
@@ -610,33 +634,29 @@ function toAccountMeeting(
 	};
 }
 
-function toCompanyDeal(deal: {
+function toCompanyRentalContract(contract: {
 	id: string;
-	name: string;
-	stage: string;
-	amount: unknown;
+	status: string;
+	totalAmount: unknown;
 	currency: string;
-	expectedCloseDate: Date | null;
+	startDate: Date;
+	endDate: Date;
 	lastActivityAt: Date | null;
-	contacts: {
-		role: string | null;
-		contact: { id: string; firstName: string; lastName: string | null };
-	}[];
-}): CompanyDeal {
+	vehicle: { make: string; model: string; plateNumber: string };
+	contact: { id: string; firstName: string; lastName: string | null };
+}): CompanyRentalContract {
 	return {
-		id: deal.id,
-		name: deal.name,
-		stage: deal.stage,
-		open: isOpen(deal.stage),
-		amount: deal.amount === null ? null : Number(deal.amount),
-		currency: deal.currency,
-		expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
-		lastActivityAt: deal.lastActivityAt?.toISOString() ?? null,
-		contacts: deal.contacts.map(({ role, contact }) => ({
-			id: contact.id,
-			name: fullName(contact),
-			role,
-		})),
+		id: contract.id,
+		vehicle: `${contract.vehicle.make} ${contract.vehicle.model} (${contract.vehicle.plateNumber})`,
+		status: contract.status,
+		open: isOpenStatus(contract.status),
+		totalAmount:
+			contract.totalAmount === null ? null : Number(contract.totalAmount),
+		currency: contract.currency,
+		startDate: contract.startDate.toISOString(),
+		endDate: contract.endDate.toISOString(),
+		lastActivityAt: contract.lastActivityAt?.toISOString() ?? null,
+		renter: { id: contract.contact.id, name: fullName(contract.contact) },
 	};
 }
 

@@ -7,6 +7,16 @@ export const currencyCode = z
 	.length(3, "A currency code is three letters, like USD.")
 	.refine(isCurrencyCode, "That is not a currency this CRM can convert.");
 
+export const MAX_AMOUNT_CENTS = 99_999_999_999_999;
+
+export const amountCents = z
+	.number()
+	.int()
+	.min(0)
+	.max(MAX_AMOUNT_CENTS, "That amount is too large to record.");
+
+export const optionalAmountCents = amountCents.nullable().optional();
+
 export const setReportingCurrencyInput = z.object({
 	currency: currencyCode,
 });

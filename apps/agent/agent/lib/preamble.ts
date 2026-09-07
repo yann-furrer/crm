@@ -19,14 +19,18 @@ export async function sessionPreamble(
 	record: {
 		contactId?: string | null;
 		companyId?: string | null;
-		dealId?: string | null;
+		vehicleId?: string | null;
+		rentalContractId?: string | null;
 	},
 	opened: Opened,
 ): Promise<Preamble> {
 	if (opened.kind === "workspace-profile") return workspacePreamble();
 	if (record.contactId) return contactPreamble(record.contactId, opened);
 	if (record.companyId) return companyPreamble(record.companyId, opened);
-	if (record.dealId) return dealPreamble(record.dealId, opened);
+	if (record.vehicleId) return vehiclePreamble(record.vehicleId, opened);
+	if (record.rentalContractId) {
+		return rentalContractPreamble(record.rentalContractId, opened);
+	}
 	return noRecordPreamble();
 }
 
@@ -72,12 +76,29 @@ export async function contactPreamble(
 			title: true,
 			company: { select: { id: true, name: true, domain: true } },
 			brief: { select: { refreshedAt: true } },
-			deals: {
-				orderBy: { deal: { lastActivityAt: "desc" } },
+			rentalContracts: {
+				orderBy: { lastActivityAt: "desc" },
+				take: 5,
+				select: {
+					id: true,
+					status: true,
+					vehicle: { select: { make: true, model: true, plateNumber: true } },
+				},
+			},
+			driverOn: {
+				orderBy: { contract: { lastActivityAt: "desc" } },
 				take: 5,
 				select: {
 					role: true,
-					deal: { select: { id: true, name: true, stage: true } },
+					contract: {
+						select: {
+							id: true,
+							status: true,
+							vehicle: {
+								select: { make: true, model: true, plateNumber: true },
+							},
+						},
+					},
 				},
 			},
 			_count: { select: { emailThreads: true, calendarEvents: true } },
@@ -95,12 +116,16 @@ export async function contactPreamble(
 			? `We have ${contact._count.emailThreads} thread(s) and ${contact._count.calendarEvents} meeting(s) with them — read those first.`
 			: "We have never corresponded with them, so there is nothing internal to go on.";
 
-	const deals = contact.deals
-		.map(
-			({ role, deal }) =>
-				`${deal.name} (${deal.stage}${role ? `, ${role}` : ""}) \`${deal.id}\``,
-		)
-		.join("; ");
+	const rentalContracts = [
+		...contact.rentalContracts.map(
+			(contract) =>
+				`${contract.vehicle.make} ${contract.vehicle.model} (${contract.status}, renter) \`${contract.id}\``,
+		),
+		...contact.driverOn.map(
+			({ role, contract }) =>
+				`${contract.vehicle.make} ${contract.vehicle.model} (${contract.status}, ${role.toLowerCase()}) \`${contract.id}\``,
+		),
+	].join("; ");
 
 	const markdown = [
 		"## This session",
@@ -124,7 +149,9 @@ export async function contactPreamble(
 					contact.company.domain ? ` (${contact.company.domain})` : ""
 				}, company id \`${contact.company.id}\` — pass that straight to \`read_company_history\`, \`enrich_company\` or \`research_company\` when the question reaches past this one person.`
 			: "They are not attached to a company. `search_crm` will find one by name or domain if the conversation needs it.",
-		deals ? `They are on: ${deals}.` : "They are not on any deal.",
+		rentalContracts
+			? `They are on: ${rentalContracts}.`
+			: "They are not on any rental contract.",
 		"",
 		known,
 		contact.brief
@@ -160,11 +187,6 @@ export async function companyPreamble(
 				take: 12,
 				select: { id: true, firstName: true, lastName: true, title: true },
 			},
-			deals: {
-				orderBy: [{ lastActivityAt: "desc" }, { createdAt: "desc" }],
-				take: 8,
-				select: { id: true, name: true, stage: true },
-			},
 			_count: { select: { contacts: true } },
 		},
 	});
@@ -187,10 +209,6 @@ export async function companyPreamble(
 			? `\n- …and ${company._count.contacts - company.contacts.length} more; \`read_company_history\` lists them all.`
 			: "";
 
-	const deals = company.deals
-		.map((deal) => `${deal.name} (${deal.stage}) \`${deal.id}\``)
-		.join("; ");
-
 	const markdown = [
 		"## This session",
 		"",
@@ -204,15 +222,13 @@ export async function companyPreamble(
 		),
 		"",
 		people
-			? `### Who we know there (${company._count.contacts})\n\n${people}${more}\n\nThose are contact ids. Use them directly — with \`read_crm_history\`, \`identify_contact\` or \`record_fact\`. Never ask a rep which contact they mean without naming these first.`
+			? `### Who we know there (${company._count.contacts})\n\n${people}${more}\n\nThose are contact ids. Use them directly — with \`read_crm_history\`, \`identify_contact\` or \`record_fact\`. Never ask a rep which contact they mean without naming these first. If any of them is renting a vehicle, \`read_crm_history\` on their id shows it — a company itself has no rental contracts of its own.`
 			: "We have no contacts on file here yet.",
-		"",
-		deals ? `Deals: ${deals}.` : "There are no deals here.",
 		company.description
 			? "There is already a description on the record."
 			: "There is no description on the record yet.",
 		"",
-		"Start with `read_company_history` on this company id — it returns the people, the deals, the correspondence and the notes in one free call.",
+		"Start with `read_company_history` on this company id — it returns the people, the correspondence and the notes in one free call.",
 		"",
 		await closing(),
 	]
@@ -222,24 +238,110 @@ export async function companyPreamble(
 	return { markdown, focus: { companyId } };
 }
 
-export async function dealPreamble(
-	dealId: string,
+export async function vehiclePreamble(
+	vehicleId: string,
 	opened: Opened,
 ): Promise<Preamble> {
-	const deal = await db.deal.findUnique({
-		where: { id: dealId },
+	const vehicle = await db.vehicle.findUnique({
+		where: { id: vehicleId },
 		select: {
-			name: true,
-			description: true,
-			stage: true,
-			amount: true,
+			make: true,
+			model: true,
+			plateNumber: true,
+			status: true,
+			dailyRate: true,
 			currency: true,
-			expectedCloseDate: true,
+			mileage: true,
+			nextMaintenanceAtKm: true,
+			nextMaintenanceAtDate: true,
+			insuranceExpiresAt: true,
 			lastActivityAt: true,
-			company: { select: { id: true, name: true } },
-			contacts: {
+			rentalContracts: {
+				orderBy: { lastActivityAt: "desc" },
+				take: 3,
 				select: {
-					role: true,
+					id: true,
+					status: true,
+					contact: { select: { firstName: true, lastName: true } },
+				},
+			},
+		},
+	});
+
+	if (!vehicle) return { markdown: await closing(), focus: {} };
+
+	const recent = vehicle.rentalContracts
+		.map(
+			(contract) =>
+				`${[contract.contact.firstName, contract.contact.lastName].filter(Boolean).join(" ")} (${contract.status}) \`${contract.id}\``,
+		)
+		.join("; ");
+
+	const markdown = [
+		"## This session",
+		"",
+		`You are working on the vehicle **${vehicle.make} ${vehicle.model}** (\`${vehicle.plateNumber}\`) — vehicle id \`${vehicleId}\`.`,
+		`Status: **${vehicle.status}**${
+			vehicle.dailyRate
+				? `. Daily rate: ${vehicle.dailyRate} ${vehicle.currency}`
+				: ""
+		}. Mileage: ${vehicle.mileage} km.`,
+		vehicle.nextMaintenanceAtDate
+			? `Next maintenance due ${vehicle.nextMaintenanceAtDate.toDateString()}.`
+			: vehicle.nextMaintenanceAtKm
+				? `Next maintenance due at ${vehicle.nextMaintenanceAtKm} km.`
+				: "No maintenance threshold set.",
+		vehicle.insuranceExpiresAt
+			? `Insurance expires ${vehicle.insuranceExpiresAt.toDateString()}.`
+			: "No insurance expiry on file.",
+		vehicle.lastActivityAt
+			? `Last touched ${vehicle.lastActivityAt.toDateString()}.`
+			: "Nothing has happened on it yet.",
+		recent ? `Recent contracts: ${recent}.` : "It has no rental history yet.",
+		"",
+		opening(
+			opened,
+			"when this is due for service, how much it has earned, or whether anything is open against it",
+		),
+		"",
+		"A vehicle itself has no research tools — the history worth reading lives on its rental contracts and the people who rented it. Use `search_crm` to find the contract you need, then `read_rental_contract_history` on it.",
+		"",
+		await closing(),
+	]
+		.filter(Boolean)
+		.join("\n");
+
+	return { markdown, focus: {} };
+}
+
+export async function rentalContractPreamble(
+	rentalContractId: string,
+	opened: Opened,
+): Promise<Preamble> {
+	const contract = await db.rentalContract.findUnique({
+		where: { id: rentalContractId },
+		select: {
+			status: true,
+			totalAmount: true,
+			currency: true,
+			startDate: true,
+			endDate: true,
+			lastActivityAt: true,
+			vehicle: {
+				select: { id: true, make: true, model: true, plateNumber: true },
+			},
+			contact: {
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					title: true,
+					company: { select: { id: true } },
+				},
+			},
+			drivers: {
+				where: { role: "ADDITIONAL" },
+				select: {
 					contact: {
 						select: { id: true, firstName: true, lastName: true, title: true },
 					},
@@ -248,57 +350,53 @@ export async function dealPreamble(
 		},
 	});
 
-	if (!deal) return { markdown: await closing(), focus: {} };
+	if (!contract) return { markdown: await closing(), focus: {} };
 
-	const people = deal.contacts
+	const people = [
+		{ role: "renter", contact: contract.contact },
+		...contract.drivers.map(({ contact }) => ({
+			role: "additional driver",
+			contact,
+		})),
+	]
 		.map(({ role, contact }) => {
 			const name = [contact.firstName, contact.lastName]
 				.filter(Boolean)
 				.join(" ");
-			return `${name}${contact.title ? ` (${contact.title})` : ""}${
-				role ? ` — ${role}` : ""
-			} \`${contact.id}\``;
+			return `${name}${contact.title ? ` (${contact.title})` : ""} — ${role} \`${contact.id}\``;
 		})
 		.join("; ");
 
 	const markdown = [
 		"## This session",
 		"",
-		`You are working on the deal **${deal.name}**${
-			deal.company ? ` at ${deal.company.name}` : ""
-		} — deal id \`${dealId}\`${
-			deal.company ? `, company id \`${deal.company.id}\`` : ""
-		}.`,
-		`Stage: **${deal.stage}**${
-			deal.amount
-				? `. Amount: ${deal.amount} ${deal.currency ?? ""}`.trim()
+		`You are working on the rental contract for **${contract.vehicle.make} ${contract.vehicle.model}** (\`${contract.vehicle.plateNumber}\`) — rental contract id \`${rentalContractId}\`, vehicle id \`${contract.vehicle.id}\`.`,
+		`Status: **${contract.status}**${
+			contract.totalAmount
+				? `. Total: ${contract.totalAmount} ${contract.currency ?? ""}`.trim()
 				: ""
-		}${
-			deal.expectedCloseDate
-				? `. Expected close: ${deal.expectedCloseDate.toDateString()}`
-				: ""
-		}.`,
-		deal.lastActivityAt
-			? `Last touched ${deal.lastActivityAt.toDateString()}.`
+		}. ${contract.startDate.toDateString()} – ${contract.endDate.toDateString()}.`,
+		contract.lastActivityAt
+			? `Last touched ${contract.lastActivityAt.toDateString()}.`
 			: "Nothing has happened on it yet.",
-		...(deal.description
-			? [`The rep's own description of it: "${deal.description}"`]
-			: []),
 		people ? `People on it: ${people}` : "Nobody is attached to it yet.",
 		"",
 		opening(
 			opened,
-			"where this stands, who else should be involved, or what the risk is",
+			"where this stands, whether the deposit is settled, or whether it is overdue",
 		),
 		"",
-		"Start with `read_deal_history` on this deal id. It returns the stage clock, every stage this deal has moved through, the last reply from their side and the next meeting — which is how you answer *where does this stand* rather than reciting the stage field back.",
+		"Start with `read_rental_contract_history` on this rental contract id. It returns the status history, the last reply from the renter's side and the next meeting — which is how you answer *where does this stand* rather than reciting the status field back.",
 		"",
-		"You can research the people and the company behind it with the usual tools — a deal itself has no fields to enrich, so anything you learn is recorded against them.",
+		"You can research the renter and their company with the usual tools — a rental contract itself has no fields to enrich, so anything you learn is recorded against them.",
 		"",
 		await closing(),
 	].join("\n");
 
-	return { markdown, focus: { companyId: deal.company?.id ?? null } };
+	return {
+		markdown,
+		focus: { companyId: contract.contact.company?.id ?? null },
+	};
 }
 
 export async function noRecordPreamble(): Promise<Preamble> {
@@ -308,8 +406,9 @@ export async function noRecordPreamble(): Promise<Preamble> {
 			"",
 			"No record was named, so nothing is in focus yet.",
 			"`list_outstanding_work` shows contacts with research outstanding, and",
-			"`search_crm` finds any contact, company or deal by name, email address or",
-			"domain. Look the record up rather than asking for an id.",
+			"`search_crm` finds any contact, company, vehicle or rental contract by",
+			"name, plate number, email address or domain. Look the record up rather",
+			"than asking for an id.",
 			"",
 			await closing(),
 		].join("\n"),

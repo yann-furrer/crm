@@ -26,7 +26,8 @@ export type TimelineFilter = (typeof TIMELINE_FILTERS)[number];
 export const timelineInput = z.object({
 	companyId: z.string().optional(),
 	contactId: z.string().optional(),
-	dealId: z.string().optional(),
+	vehicleId: z.string().optional(),
+	rentalContractId: z.string().optional(),
 	filter: z.enum(TIMELINE_FILTERS).default("all"),
 	cursor: z.string().optional(),
 	limit: z.number().int().min(1).max(100).default(30),
@@ -37,7 +38,8 @@ export type TimelineInput = z.infer<typeof timelineInput>;
 export const timelineCountsInput = z.object({
 	companyId: z.string().optional(),
 	contactId: z.string().optional(),
-	dealId: z.string().optional(),
+	vehicleId: z.string().optional(),
+	rentalContractId: z.string().optional(),
 });
 
 export const activityCreateInput = z
@@ -49,11 +51,20 @@ export const activityCreateInput = z
 		dueAt: z.string().nullable().optional(),
 		companyId: z.string().optional(),
 		contactId: z.string().optional(),
-		dealId: z.string().optional(),
+		vehicleId: z.string().optional(),
+		rentalContractId: z.string().optional(),
 	})
-	.refine((input) => input.companyId || input.contactId || input.dealId, {
-		message: "An activity has to be about a company, a contact or a deal.",
-	})
+	.refine(
+		(input) =>
+			input.companyId ||
+			input.contactId ||
+			input.vehicleId ||
+			input.rentalContractId,
+		{
+			message:
+				"An activity has to be about a company, a contact, a vehicle or a rental contract.",
+		},
+	)
 	.refine(
 		(input) => input.type !== ActivityType.TASK || Boolean(input.subject),
 		{

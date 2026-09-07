@@ -34,7 +34,8 @@ import {
 const NOUN: Record<RecordKind, string> = {
 	company: "company",
 	contact: "contact",
-	deal: "deal",
+	vehicle: "vehicle",
+	rentalContract: "rental contract",
 };
 
 function useDeleteRecord(record: RecordRef) {
@@ -42,25 +43,49 @@ function useDeleteRecord(record: RecordRef) {
 	const cache = useCrmCache();
 	const { close } = useRecordStack();
 
-	const handlers = {
-		onSuccess: (deleted: { name: string }) => {
-			toast.success(
-				`${deleted.name || `The ${NOUN[record.kind]}`} was deleted.`,
-			);
-			void cache.removed(record);
-			close();
-		},
-		onError: (error: { message: string }) => toast.error(error.message),
+	const announce = (label: string | undefined) => {
+		toast.success(`${label || `The ${NOUN[record.kind]}`} was deleted.`);
+		void cache.removed(record);
+		close();
 	};
 
-	const options =
-		record.kind === "contact"
-			? trpc.contacts.delete.mutationOptions(handlers)
-			: record.kind === "company"
-				? trpc.companies.delete.mutationOptions(handlers)
-				: trpc.deals.delete.mutationOptions(handlers);
+	const onError = (error: { message: string }) => toast.error(error.message);
 
-	return useMutation(options);
+	const deleteContact = useMutation(
+		trpc.contacts.delete.mutationOptions({
+			onSuccess: (deleted) => announce(deleted.name),
+			onError,
+		}),
+	);
+	const deleteCompany = useMutation(
+		trpc.companies.delete.mutationOptions({
+			onSuccess: (deleted) => announce(deleted.name),
+			onError,
+		}),
+	);
+	const deleteVehicle = useMutation(
+		trpc.vehicles.delete.mutationOptions({
+			onSuccess: (deleted) => announce(deleted.plateNumber),
+			onError,
+		}),
+	);
+	const deleteRentalContract = useMutation(
+		trpc.rentalContracts.delete.mutationOptions({
+			onSuccess: () => announce(undefined),
+			onError,
+		}),
+	);
+
+	switch (record.kind) {
+		case "contact":
+			return deleteContact;
+		case "company":
+			return deleteCompany;
+		case "vehicle":
+			return deleteVehicle;
+		case "rentalContract":
+			return deleteRentalContract;
+	}
 }
 
 export function RecordActions({

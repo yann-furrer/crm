@@ -5,7 +5,6 @@ import {
 	Prisma as PrismaNamespace,
 	type RecordSource,
 } from "@crm/db";
-import { OPEN_DEAL_STAGES } from "@crm/db/deal-stage";
 import {
 	BadRequestException,
 	ConflictException,
@@ -20,7 +19,7 @@ import {
 	type StampTargets,
 } from "../crm/activity-stamp.service";
 import { type BulkResult, requireOwner, runBulk } from "../crm/bulk";
-import { blankToNull, toCents } from "../crm/values";
+import { blankToNull } from "../crm/values";
 import { ConversionService } from "../currency/conversion.service";
 import { InjectDatabase } from "../database/database.constants";
 import { FieldsService } from "../fields/fields.service";
@@ -69,7 +68,6 @@ export type CompanyRow = {
 		image: string | null;
 	} | null;
 	contactCount: number;
-	openDealCount: number;
 	lastActivityAt: string | null;
 	createdAt: string;
 	fields: Record<string, string | number | boolean | null>;
@@ -84,7 +82,6 @@ const SORTABLE: Record<
 	industry: (dir) => ({ industry: dir }),
 	createdAt: (dir) => ({ createdAt: dir }),
 	contacts: (dir) => ({ contacts: { _count: dir } }),
-	deals: (dir) => ({ deals: { _count: dir } }),
 	owner: (dir) => ({ owner: { name: dir } }),
 	lastActivity: (dir) => ({ lastActivityAt: { sort: dir, nulls: "last" } }),
 };
@@ -131,7 +128,6 @@ export class CompaniesService {
 					_count: {
 						select: {
 							contacts: true,
-							deals: { where: { stage: { in: [...OPEN_DEAL_STAGES] } } },
 						},
 					},
 					lastActivityAt: true,
@@ -164,7 +160,6 @@ export class CompaniesService {
 				source: row.source,
 				owner: row.owner,
 				contactCount: row._count.contacts,
-				openDealCount: row._count.deals,
 				lastActivityAt: row.lastActivityAt?.toISOString() ?? null,
 				createdAt: row.createdAt.toISOString(),
 				fields: tableFields.get(row.id) ?? {},
@@ -230,19 +225,6 @@ export class CompaniesService {
 						owner: { select: OWNER_SELECT },
 					},
 				},
-				deals: {
-					orderBy: [{ stage: "asc" }, { expectedCloseDate: "asc" }],
-					select: {
-						id: true,
-						name: true,
-						stage: true,
-						amount: true,
-						currency: true,
-						baseAmount: true,
-						expectedCloseDate: true,
-						owner: { select: OWNER_SELECT },
-					},
-				},
 			},
 		});
 
@@ -250,7 +232,7 @@ export class CompaniesService {
 			throw new NotFoundException(`No company with id ${id}.`);
 		}
 
-		const { deals, primaryContact, enrichedAt, createdAt, ...rest } = company;
+		const { primaryContact, enrichedAt, createdAt, ...rest } = company;
 
 		return {
 			...rest,
@@ -261,14 +243,6 @@ export class CompaniesService {
 			primaryContactId: primaryContact?.id ?? null,
 			primaryContact,
 			reportingCurrency: await this.conversion.reportingCurrency(),
-			deals: deals.map((deal) => ({
-				...deal,
-				amount: undefined,
-				baseAmount: undefined,
-				amountCents: toCents(deal.amount),
-				baseAmountCents: toCents(deal.baseAmount),
-				expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
-			})),
 		};
 	}
 
@@ -398,10 +372,7 @@ export class CompaniesService {
 
 		try {
 			deleted = await this.db.$transaction(async (tx) => {
-				const targets = await this.stamp.targetsOf(
-					{ OR: [{ companyId: id }, { deal: { companyId: id } }] },
-					tx,
-				);
+				const targets = await this.stamp.targetsOf({ companyId: id }, tx);
 
 				await tx.agentTask.deleteMany({ where: { companyId: id } });
 

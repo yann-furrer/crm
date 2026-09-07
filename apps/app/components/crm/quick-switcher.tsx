@@ -23,10 +23,11 @@ import { useTRPC } from "@/lib/trpc/client";
 const GROUP_LABEL = {
 	company: "Companies",
 	contact: "Contacts",
-	deal: "Deals",
+	vehicle: "Vehicles",
+	rentalContract: "Rental contracts",
 } as const;
 
-const KINDS = ["company", "contact", "deal"] as const;
+const KINDS = ["company", "contact", "vehicle", "rentalContract"] as const;
 
 export function QuickSwitcher() {
 	const openRecord = useOpenRecord();
@@ -66,11 +67,11 @@ export function QuickSwitcher() {
 			open={open}
 			onOpenChange={(next) => setOpen(next || null)}
 			title="Search"
-			description="Jump to a company, contact or deal"
+			description="Jump to a company, contact, vehicle or rental contract"
 		>
 			<Command shouldFilter={false}>
 				<CommandInput
-					placeholder="Search companies, contacts and deals…"
+					placeholder="Search companies, contacts, vehicles and rental contracts…"
 					value={query}
 					onValueChange={setQuery}
 				/>

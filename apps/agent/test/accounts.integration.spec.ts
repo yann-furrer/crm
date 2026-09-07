@@ -1,12 +1,22 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { ActivityType, DealStage, db, EmailDirection } from "@crm/db";
-import { readCompanyHistory, readDealHistory } from "../agent/lib/accounts";
+import {
+	ActivityType,
+	db,
+	EmailDirection,
+	RentalContractStatus,
+	VehicleType,
+} from "@crm/db";
+import {
+	readCompanyHistory,
+	readRentalContractHistory,
+} from "../agent/lib/accounts";
 
 const suffix = process.env.TEST_RUN_ID ?? "accounts-spec";
 const domain = `fernhill-${suffix}.test`;
 
 let companyId: string;
-let dealId: string;
+let vehicleId: string;
+let rentalContractId: string;
 let paulaId: string;
 let placeholderId: string;
 let userId: string;
@@ -64,42 +74,58 @@ beforeAll(async () => {
 	});
 	placeholderId = placeholder.id;
 
-	const deal = await db.deal.create({
+	const vehicle = await db.vehicle.create({
 		data: {
-			name: `Fernhill platform ${suffix}`,
-			companyId,
+			type: VehicleType.MINIBUS,
+			make: "Toyota",
+			model: "Hiace",
+			plateNumber: `FERNHILL-${suffix}`,
 			ownerId: userId,
-			stage: DealStage.CONTRACT_SENT,
-			stageChangedAt: daysAgo(42),
-			amount: 48_000,
+			dailyRate: 40_000,
 			currency: "USD",
-			expectedCloseDate: daysAhead(14),
-			lastActivityAt: daysAgo(3),
-			contacts: { create: [{ contactId: paulaId, role: "Champion" }] },
 		},
 		select: { id: true },
 	});
-	dealId = deal.id;
+	vehicleId = vehicle.id;
+
+	const rentalContract = await db.rentalContract.create({
+		data: {
+			vehicleId,
+			contactId: paulaId,
+			ownerId: userId,
+			status: RentalContractStatus.ACTIVE,
+			startDate: daysAgo(14),
+			endDate: daysAhead(14),
+			pricePerDay: 4_000,
+			currency: "USD",
+			totalAmount: 48_000,
+			depositAmount: 10_000,
+			depositCurrency: "USD",
+			lastActivityAt: daysAgo(3),
+		},
+		select: { id: true },
+	});
+	rentalContractId = rentalContract.id;
 
 	await db.activity.createMany({
 		data: [
 			{
 				type: ActivityType.STAGE_CHANGE,
-				subject: "Stage changed",
+				subject: "Status changed",
 				companyId,
-				dealId,
+				rentalContractId,
 				createdById: userId,
 				createdAt: daysAgo(60),
-				meta: { from: "DEMO_BOOKED", to: "QUALIFIED_TO_BUY" },
+				meta: { from: "DRAFT", to: "RESERVED" },
 			},
 			{
 				type: ActivityType.STAGE_CHANGE,
-				subject: "Stage changed",
+				subject: "Status changed",
 				companyId,
-				dealId,
+				rentalContractId,
 				createdById: userId,
 				createdAt: daysAgo(42),
-				meta: { from: "QUALIFIED_TO_BUY", to: "CONTRACT_SENT" },
+				meta: { from: "RESERVED", to: "ACTIVE" },
 			},
 			{
 				type: ActivityType.NOTE,
@@ -107,14 +133,14 @@ beforeAll(async () => {
 				body: "They want the security review done before signing.",
 				occurredAt: daysAgo(5),
 				companyId,
-				dealId,
+				rentalContractId,
 				createdById: userId,
 			},
 			{
 				type: ActivityType.EMAIL,
 				subject: "Re: Contract",
 				companyId,
-				dealId,
+				rentalContractId,
 				createdById: userId,
 			},
 		],
@@ -190,7 +216,12 @@ async function cleanup(): Promise<void> {
 		await db.activity.deleteMany({ where: { companyId: company.id } });
 		await db.calendarEvent.deleteMany({ where: { companyId: company.id } });
 		await db.emailThread.deleteMany({ where: { companyId: company.id } });
-		await db.deal.deleteMany({ where: { companyId: company.id } });
+		await db.rentalContract.deleteMany({
+			where: { contact: { companyId: company.id } },
+		});
+		await db.vehicle.deleteMany({
+			where: { owner: { email: `rep.${suffix}@example.test` } },
+		});
 		await db.contact.deleteMany({ where: { companyId: company.id } });
 		await db.company.delete({ where: { id: company.id } });
 	}
@@ -223,17 +254,17 @@ describe("readCompanyHistory", () => {
 		expect(people[paulaId]).toBe(false);
 	});
 
-	it("returns the deals with stage, value and who is on them", async () => {
+	it("returns the rental contracts with status, amount and who is on them", async () => {
 		const history = await readCompanyHistory(companyId);
-		const deal = history?.deals.find((row) => row.id === dealId);
+		const contract = history?.rentalContracts.find(
+			(row) => row.id === rentalContractId,
+		);
 
-		expect(deal?.stage).toBe("CONTRACT_SENT");
-		expect(deal?.open).toBe(true);
-		expect(deal?.amount).toBe(48_000);
-		expect(deal?.contacts).toEqual([
-			{ id: paulaId, name: "Paula Marchetti", role: "Champion" },
-		]);
-		expect(history?.stats.openDeals).toBe(1);
+		expect(contract?.status).toBe("ACTIVE");
+		expect(contract?.open).toBe(true);
+		expect(contract?.totalAmount).toBe(48_000);
+		expect(contract?.renter).toEqual({ id: paulaId, name: "Paula Marchetti" });
+		expect(history?.stats.openRentalContracts).toBe(1);
 	});
 
 	it("reads the correspondence and knows they replied", async () => {
@@ -281,26 +312,26 @@ describe("readCompanyHistory", () => {
 	});
 });
 
-describe("readDealHistory", () => {
-	it("reports the stage clock, not just the stage", async () => {
-		const history = await readDealHistory(dealId);
+describe("readRentalContractHistory", () => {
+	it("reports the status clock, not just the status", async () => {
+		const history = await readRentalContractHistory(rentalContractId);
 
-		expect(history?.deal.stage).toBe("CONTRACT_SENT");
-		expect(history?.deal.open).toBe(true);
-		expect(history?.deal.daysInStage).toBeGreaterThanOrEqual(41);
+		expect(history?.rentalContract.status).toBe("ACTIVE");
+		expect(history?.rentalContract.open).toBe(true);
+		expect(history?.rentalContract.daysInStatus).toBeGreaterThanOrEqual(41);
 	});
 
-	it("returns every stage it moved through, oldest first", async () => {
-		const history = await readDealHistory(dealId);
+	it("returns every status it moved through, oldest first", async () => {
+		const history = await readRentalContractHistory(rentalContractId);
 
-		expect(history?.stageHistory.map((change) => change.to)).toEqual([
-			"QUALIFIED_TO_BUY",
-			"CONTRACT_SENT",
+		expect(history?.statusHistory.map((change) => change.to)).toEqual([
+			"RESERVED",
+			"ACTIVE",
 		]);
 	});
 
 	it("names who is on it, with ids and roles", async () => {
-		const history = await readDealHistory(dealId);
+		const history = await readRentalContractHistory(rentalContractId);
 
 		expect(history?.people).toEqual([
 			{
@@ -308,22 +339,22 @@ describe("readDealHistory", () => {
 				name: "Paula Marchetti",
 				title: "Growth Specialist",
 				email: `paula.marchetti@${domain}`,
-				role: "Champion",
+				role: "PRIMARY",
 			},
 		]);
-		expect(history?.company.id).toBe(companyId);
+		expect(history?.vehicle.id).toBe(vehicleId);
 	});
 
-	it("says the correspondence is the account's, not the deal's", async () => {
-		const history = await readDealHistory(dealId);
+	it("says the correspondence is the renter's, not the contract's", async () => {
+		const history = await readRentalContractHistory(rentalContractId);
 
 		expect(history?.threads).toHaveLength(1);
 		expect(history?.stats.theyReplied).toBe(true);
-		expect(history?.note).toContain("never against a deal");
+		expect(history?.note).toContain("never against a rental contract");
 	});
 
-	it("omits deal correspondence when connected sources are not approved", async () => {
-		const history = await readDealHistory(dealId, {
+	it("omits contract correspondence when connected sources are not approved", async () => {
+		const history = await readRentalContractHistory(rentalContractId, {
 			includeEmail: false,
 			includeCalendar: false,
 		});
@@ -335,7 +366,7 @@ describe("readDealHistory", () => {
 		expect(history?.note).toContain("outside this agent version");
 	});
 
-	it("returns null for a deal that does not exist", async () => {
-		expect(await readDealHistory("nope")).toBeNull();
+	it("returns null for a rental contract that does not exist", async () => {
+		expect(await readRentalContractHistory("nope")).toBeNull();
 	});
 });

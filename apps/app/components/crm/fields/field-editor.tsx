@@ -70,7 +70,8 @@ import { type FieldEntity, kindOf } from "./fields-entity";
 const COVERAGE_NOUN: Record<FieldEntity, string> = {
 	COMPANY: "companies",
 	CONTACT: "contacts",
-	DEAL: "deals",
+	VEHICLE: "vehicles",
+	RENTAL_CONTRACT: "rental contracts",
 };
 
 type FieldRecord = RouterOutputs["fields"]["list"][number];

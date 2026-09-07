@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { RecordLink } from "@/components/crm/record-sheet/record-link";
 import { LocalDateTime, LocalRelativeTime } from "@/components/local-date-time";
 import { activityLabel } from "@/lib/activity-presentation";
-import { dealStageLabel } from "@/lib/deal-stage";
+import { rentalStatusLabel } from "@/lib/rental-status";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
@@ -34,7 +34,8 @@ function stageChange(meta: Record<string, unknown> | null) {
 function anchorId(anchor: TimelineAnchor): string {
 	if ("companyId" in anchor) return anchor.companyId;
 	if ("contactId" in anchor) return anchor.contactId;
-	return anchor.dealId;
+	if ("vehicleId" in anchor) return anchor.vehicleId;
+	return anchor.rentalContractId;
 }
 
 export function TimelineEntry({
@@ -73,16 +74,21 @@ export function TimelineEntry({
 		: entry.createdBy.name;
 
 	const headline = change
-		? `${dealStageLabel(change.from as never)} → ${dealStageLabel(change.to as never)}`
+		? `${rentalStatusLabel(change.from as never)} → ${rentalStatusLabel(change.to as never)}`
 		: entry.subject;
 
 	const here = anchorId(anchor);
-	const deal = entry.deal && entry.deal.id !== here ? entry.deal : null;
+	const vehicle =
+		entry.vehicle && entry.vehicle.id !== here ? entry.vehicle : null;
+	const rentalContract =
+		entry.rentalContract && entry.rentalContract.id !== here
+			? entry.rentalContract
+			: null;
 	const contact =
 		entry.contact && entry.contact.id !== here ? entry.contact : null;
 
 	const footnotes = Boolean(
-		deal || contact || (isTask && !done && entry.dueAt),
+		vehicle || rentalContract || contact || (isTask && !done && entry.dueAt),
 	);
 
 	return (
@@ -176,9 +182,15 @@ export function TimelineEntry({
 							/>
 						) : null}
 
-						{deal ? (
-							<RecordLink kind="deal" id={deal.id}>
-								{deal.name}
+						{vehicle ? (
+							<RecordLink kind="vehicle" id={vehicle.id}>
+								{vehicle.make} {vehicle.model}
+							</RecordLink>
+						) : null}
+
+						{rentalContract ? (
+							<RecordLink kind="rentalContract" id={rentalContract.id}>
+								{rentalContract.vehicle.plateNumber}
 							</RecordLink>
 						) : null}
 

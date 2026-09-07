@@ -6,7 +6,7 @@ const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
 export type BuilderResource = {
-	kind: "integration" | "company" | "contact" | "deal";
+	kind: "integration" | "company" | "contact" | "vehicle" | "rentalContract";
 	id: string;
 	label: string;
 };
@@ -579,16 +579,17 @@ async function describeResources(resources: BuilderResource[]) {
 				});
 				return { ...resource, record: row };
 			}
-			if (resource.kind === "deal") {
-				const row = await db.deal.findUnique({
+			if (resource.kind === "vehicle") {
+				const row = await db.vehicle.findUnique({
 					where: { id: resource.id },
 					select: {
 						id: true,
-						name: true,
-						stage: true,
-						amount: true,
+						make: true,
+						model: true,
+						plateNumber: true,
+						status: true,
+						dailyRate: true,
 						currency: true,
-						company: { select: { id: true, name: true } },
 					},
 				});
 				return {
@@ -596,9 +597,31 @@ async function describeResources(resources: BuilderResource[]) {
 					record: row
 						? {
 								...row,
-								amount: row.amount === null ? null : Number(row.amount),
+								dailyRate:
+									row.dailyRate === null ? null : Number(row.dailyRate),
 							}
 						: null,
+				};
+			}
+			if (resource.kind === "rentalContract") {
+				const row = await db.rentalContract.findUnique({
+					where: { id: resource.id },
+					select: {
+						id: true,
+						status: true,
+						totalAmount: true,
+						currency: true,
+						startDate: true,
+						endDate: true,
+						vehicle: { select: { id: true, make: true, model: true } },
+						contact: {
+							select: { id: true, firstName: true, lastName: true },
+						},
+					},
+				});
+				return {
+					...resource,
+					record: row ? { ...row, totalAmount: Number(row.totalAmount) } : null,
 				};
 			}
 			return { ...resource, record: null };
@@ -622,9 +645,13 @@ function resourcesOf(value: unknown): BuilderResource[] {
 		if (!resource || typeof resource !== "object") return [];
 		const row = resource as Record<string, unknown>;
 		if (
-			!["integration", "company", "contact", "deal"].includes(
-				String(row.kind),
-			) ||
+			![
+				"integration",
+				"company",
+				"contact",
+				"vehicle",
+				"rentalContract",
+			].includes(String(row.kind)) ||
 			typeof row.id !== "string" ||
 			typeof row.label !== "string"
 		) {

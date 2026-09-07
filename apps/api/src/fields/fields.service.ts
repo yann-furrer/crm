@@ -324,7 +324,9 @@ export class FieldsService {
 				? this.db.company.count()
 				: definition.entity === "CONTACT"
 					? this.db.contact.count()
-					: this.db.deal.count(),
+					: definition.entity === "VEHICLE"
+						? this.db.vehicle.count()
+						: this.db.rentalContract.count(),
 		]);
 
 		return { filled, total };

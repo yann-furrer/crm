@@ -201,7 +201,7 @@ describe("scheduleTask", () => {
 		const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 		const { id } = await scheduleTask({
 			kind,
-			reason: "a job change here would move the Acme deal",
+			reason: "a job change here would move the Acme rental contract",
 			dueAt,
 		});
 

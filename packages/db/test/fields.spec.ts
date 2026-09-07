@@ -41,7 +41,8 @@ function value(over: Partial<FieldValueModel> = {}): FieldValueModel {
 		fieldId: "def-1",
 		companyId: "company-1",
 		contactId: null,
-		dealId: null,
+		vehicleId: null,
+		rentalContractId: null,
 		text: null,
 		number: null,
 		date: null,
@@ -91,7 +92,8 @@ describe("recordColumn", () => {
 	it("maps an entity to its foreign key", () => {
 		expect(recordColumn("COMPANY")).toBe("companyId");
 		expect(recordColumn("CONTACT")).toBe("contactId");
-		expect(recordColumn("DEAL")).toBe("dealId");
+		expect(recordColumn("VEHICLE")).toBe("vehicleId");
+		expect(recordColumn("RENTAL_CONTRACT")).toBe("rentalContractId");
 	});
 });
 

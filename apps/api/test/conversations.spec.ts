@@ -163,7 +163,7 @@ describe("ConversationsService", () => {
 		expect(
 			conversationSaveInput.safeParse({
 				contactId,
-				dealId: "deal-1",
+				vehicleId: "vehicle-1",
 				sessionId: "session-1",
 			}).success,
 		).toBe(false);

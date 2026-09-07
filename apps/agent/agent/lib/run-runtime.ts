@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { ActivityType, db, type Prisma } from "@crm/db";
 import { lockIdempotencyKey } from "@crm/db/idempotency";
-import { readCompanyHistory, readDealHistory } from "./accounts";
+import { readCompanyHistory, readRentalContractHistory } from "./accounts";
 import { readCrmHistory } from "./crm";
 import { searchCrm } from "./lookup";
 import { lockAgentRun, runTerminalEventId } from "./run-state";
@@ -9,7 +9,7 @@ import { lockAgentRun, runTerminalEventId } from "./run-state";
 const ACTION_LEASE_MS = 5 * 60_000;
 
 type RunResource = {
-	kind: "integration" | "company" | "contact" | "deal";
+	kind: "integration" | "company" | "contact" | "vehicle" | "rentalContract";
 	id: string;
 	label: string;
 };
@@ -73,7 +73,7 @@ export async function queryRunCrm(
 	runId: string,
 	input: {
 		query: string;
-		kinds?: ("contact" | "company" | "deal")[];
+		kinds?: ("contact" | "company" | "rentalContract")[];
 		limit: number;
 	},
 ) {
@@ -93,20 +93,22 @@ export async function queryRunCrm(
 	const companies = result.companies.filter((row) =>
 		allowed.has(`company:${row.id}`),
 	);
-	const deals = result.deals.filter((row) => allowed.has(`deal:${row.id}`));
+	const rentalContracts = result.rentalContracts.filter((row) =>
+		allowed.has(`rentalContract:${row.id}`),
+	);
 	return {
 		...result,
 		contacts,
 		companies,
-		deals,
-		total: contacts.length + companies.length + deals.length,
+		rentalContracts,
+		total: contacts.length + companies.length + rentalContracts.length,
 	};
 }
 
 export async function readRunRecord(
 	runId: string,
 	input: {
-		kind: "contact" | "company" | "deal";
+		kind: "contact" | "company" | "rentalContract";
 		id: string;
 	},
 ) {
@@ -128,7 +130,7 @@ export async function readRunRecord(
 			includeCalendar: sources.calendar,
 		});
 	}
-	return readDealHistory(input.id, {
+	return readRentalContractHistory(input.id, {
 		threads: 10,
 		includeEmail: sources.gmail,
 		includeCalendar: sources.calendar,
@@ -140,7 +142,7 @@ export async function createRunActivity(
 	callId: string,
 	input: {
 		type: "NOTE" | "TASK";
-		targetKind: "company" | "contact" | "deal";
+		targetKind: "company" | "contact" | "vehicle" | "rentalContract";
 		targetId: string;
 		subject?: string | null;
 		body?: string | null;
@@ -306,7 +308,8 @@ export async function createRunActivity(
 					dueAt: input.type === "TASK" ? dueAt : null,
 					companyId: target.companyId,
 					contactId: target.contactId,
-					dealId: target.dealId,
+					vehicleId: target.vehicleId,
+					rentalContractId: target.rentalContractId,
 					createdById: run.initiatedById ?? run.agent.createdById,
 					meta: {
 						source: "agent",
@@ -330,9 +333,15 @@ export async function createRunActivity(
 					data: { lastActivityAt: now },
 				});
 			}
-			if (target.dealId) {
-				await tx.deal.update({
-					where: { id: target.dealId },
+			if (target.vehicleId) {
+				await tx.vehicle.update({
+					where: { id: target.vehicleId },
+					data: { lastActivityAt: now },
+				});
+			}
+			if (target.rentalContractId) {
+				await tx.rentalContract.update({
+					where: { id: target.rentalContractId },
 					data: { lastActivityAt: now },
 				});
 			}
@@ -480,9 +489,13 @@ function manifestDataScope(value: unknown): {
 		if (!resource || typeof resource !== "object") return [];
 		const row = resource as Record<string, unknown>;
 		if (
-			!["integration", "company", "contact", "deal"].includes(
-				String(row.kind),
-			) ||
+			![
+				"integration",
+				"company",
+				"contact",
+				"vehicle",
+				"rentalContract",
+			].includes(String(row.kind)) ||
 			typeof row.id !== "string" ||
 			typeof row.label !== "string"
 		) {
@@ -527,7 +540,7 @@ function assertActivityAllowed(
 function assertResourceAllowed(
 	mode: RunRecordScope,
 	resources: RunResource[],
-	input: { kind: "contact" | "company" | "deal"; id: string },
+	input: { kind: RunResource["kind"]; id: string },
 ) {
 	if (mode === "WORKSPACE") return;
 	const records = resources.filter(
@@ -560,7 +573,10 @@ export function allowedHistorySources(resources: RunResource[]): {
 	};
 }
 
-async function targetRecord(kind: "company" | "contact" | "deal", id: string) {
+async function targetRecord(
+	kind: "company" | "contact" | "vehicle" | "rentalContract",
+	id: string,
+) {
 	if (kind === "company") {
 		const company = await db.company.findUnique({
 			where: { id },
@@ -571,7 +587,8 @@ async function targetRecord(kind: "company" | "contact" | "deal", id: string) {
 					label: company.name,
 					companyId: company.id,
 					contactId: null,
-					dealId: null,
+					vehicleId: null,
+					rentalContractId: null,
 				}
 			: null;
 	}
@@ -587,21 +604,41 @@ async function targetRecord(kind: "company" | "contact" | "deal", id: string) {
 						.join(" "),
 					companyId: contact.companyId,
 					contactId: contact.id,
-					dealId: null,
+					vehicleId: null,
+					rentalContractId: null,
+				}
+			: null;
+	}
+	if (kind === "vehicle") {
+		const vehicle = await db.vehicle.findUnique({
+			where: { id },
+			select: { id: true, make: true, model: true, plateNumber: true },
+		});
+		return vehicle
+			? {
+					label: `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})`,
+					companyId: null,
+					contactId: null,
+					vehicleId: vehicle.id,
+					rentalContractId: null,
 				}
 			: null;
 	}
 
-	const deal = await db.deal.findUnique({
+	const contract = await db.rentalContract.findUnique({
 		where: { id },
-		select: { id: true, name: true, companyId: true },
+		select: {
+			id: true,
+			vehicle: { select: { make: true, model: true, plateNumber: true } },
+		},
 	});
-	return deal
+	return contract
 		? {
-				label: deal.name,
-				companyId: deal.companyId,
+				label: `${contract.vehicle.make} ${contract.vehicle.model} (${contract.vehicle.plateNumber})`,
+				companyId: null,
 				contactId: null,
-				dealId: deal.id,
+				vehicleId: null,
+				rentalContractId: contract.id,
 			}
 		: null;
 }
@@ -614,7 +651,7 @@ function recordOf(value: unknown): Record<string, unknown> {
 
 function actionRequestHash(input: {
 	type: "NOTE" | "TASK";
-	targetKind: "company" | "contact" | "deal";
+	targetKind: "company" | "contact" | "vehicle" | "rentalContract";
 	targetId: string;
 	subject?: string | null;
 	body?: string | null;

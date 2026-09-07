@@ -5,13 +5,15 @@ import { InjectDatabase } from "../database/database.constants";
 export type ActivityTarget = {
 	companyId?: string | null;
 	contactId?: string | null;
-	dealId?: string | null;
+	vehicleId?: string | null;
+	rentalContractId?: string | null;
 };
 
 export type StampTargets = {
 	companyIds: string[];
 	contactIds: string[];
-	dealIds: string[];
+	vehicleIds: string[];
+	rentalContractIds: string[];
 };
 
 function present(ids: (string | null)[]): string[] {
@@ -42,9 +44,15 @@ export class ActivityStampService {
 						data: { lastActivityAt: at },
 					})
 				: null,
-			target.dealId
-				? this.db.deal.updateMany({
-						where: { id: target.dealId, ...stale },
+			target.vehicleId
+				? this.db.vehicle.updateMany({
+						where: { id: target.vehicleId, ...stale },
+						data: { lastActivityAt: at },
+					})
+				: null,
+			target.rentalContractId
+				? this.db.rentalContract.updateMany({
+						where: { id: target.rentalContractId, ...stale },
 						data: { lastActivityAt: at },
 					})
 				: null,
@@ -74,13 +82,24 @@ export class ActivityStampService {
 			});
 		}
 
-		if (target.dealId) {
+		if (target.vehicleId) {
 			const { _max } = await this.db.activity.aggregate({
-				where: { dealId: target.dealId },
+				where: { vehicleId: target.vehicleId },
 				_max: { createdAt: true },
 			});
-			await this.db.deal.update({
-				where: { id: target.dealId },
+			await this.db.vehicle.update({
+				where: { id: target.vehicleId },
+				data: { lastActivityAt: _max.createdAt },
+			});
+		}
+
+		if (target.rentalContractId) {
+			const { _max } = await this.db.activity.aggregate({
+				where: { rentalContractId: target.rentalContractId },
+				_max: { createdAt: true },
+			});
+			await this.db.rentalContract.update({
+				where: { id: target.rentalContractId },
 				data: { lastActivityAt: _max.createdAt },
 			});
 		}
@@ -90,16 +109,20 @@ export class ActivityStampService {
 		where: Prisma.ActivityWhereInput,
 		client: Prisma.TransactionClient = this.db,
 	): Promise<StampTargets> {
-		const [companies, contacts, deals] = await Promise.all([
+		const [companies, contacts, vehicles, rentalContracts] = await Promise.all([
 			client.activity.groupBy({ by: ["companyId"], where }),
 			client.activity.groupBy({ by: ["contactId"], where }),
-			client.activity.groupBy({ by: ["dealId"], where }),
+			client.activity.groupBy({ by: ["vehicleId"], where }),
+			client.activity.groupBy({ by: ["rentalContractId"], where }),
 		]);
 
 		return {
 			companyIds: present(companies.map((row) => row.companyId)),
 			contactIds: present(contacts.map((row) => row.contactId)),
-			dealIds: present(deals.map((row) => row.dealId)),
+			vehicleIds: present(vehicles.map((row) => row.vehicleId)),
+			rentalContractIds: present(
+				rentalContracts.map((row) => row.rentalContractId),
+			),
 		};
 	}
 
@@ -107,7 +130,12 @@ export class ActivityStampService {
 		const statements = [
 			this.restamp("company", "companyId", targets.companyIds),
 			this.restamp("contact", "contactId", targets.contactIds),
-			this.restamp("deal", "dealId", targets.dealIds),
+			this.restamp("vehicle", "vehicleId", targets.vehicleIds),
+			this.restamp(
+				"rentalContract",
+				"rentalContractId",
+				targets.rentalContractIds,
+			),
 		].filter((statement) => statement !== null);
 
 		if (statements.length === 0) return;
@@ -174,17 +202,29 @@ export class ActivityStampService {
 				WHERE "lastActivityAt" IS NOT NULL
 				AND id NOT IN (SELECT "contactId" FROM "activity" WHERE "contactId" IS NOT NULL)`,
 			this.db.$executeRaw`
-				UPDATE "deal" d
+				UPDATE "vehicle" v
 				SET "lastActivityAt" = a.max
 				FROM (
-					SELECT "dealId" AS id, MAX("createdAt") AS max
-					FROM "activity" WHERE "dealId" IS NOT NULL GROUP BY "dealId"
+					SELECT "vehicleId" AS id, MAX("createdAt") AS max
+					FROM "activity" WHERE "vehicleId" IS NOT NULL GROUP BY "vehicleId"
 				) a
-				WHERE d.id = a.id AND d."lastActivityAt" IS DISTINCT FROM a.max`,
+				WHERE v.id = a.id AND v."lastActivityAt" IS DISTINCT FROM a.max`,
 			this.db.$executeRaw`
-				UPDATE "deal" SET "lastActivityAt" = NULL
+				UPDATE "vehicle" SET "lastActivityAt" = NULL
 				WHERE "lastActivityAt" IS NOT NULL
-				AND id NOT IN (SELECT "dealId" FROM "activity" WHERE "dealId" IS NOT NULL)`,
+				AND id NOT IN (SELECT "vehicleId" FROM "activity" WHERE "vehicleId" IS NOT NULL)`,
+			this.db.$executeRaw`
+				UPDATE "rentalContract" rc
+				SET "lastActivityAt" = a.max
+				FROM (
+					SELECT "rentalContractId" AS id, MAX("createdAt") AS max
+					FROM "activity" WHERE "rentalContractId" IS NOT NULL GROUP BY "rentalContractId"
+				) a
+				WHERE rc.id = a.id AND rc."lastActivityAt" IS DISTINCT FROM a.max`,
+			this.db.$executeRaw`
+				UPDATE "rentalContract" SET "lastActivityAt" = NULL
+				WHERE "lastActivityAt" IS NOT NULL
+				AND id NOT IN (SELECT "rentalContractId" FROM "activity" WHERE "rentalContractId" IS NOT NULL)`,
 		]);
 	}
 }

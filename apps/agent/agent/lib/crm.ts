@@ -119,14 +119,15 @@ export type CrmHistory = {
 			industry: string | null;
 		} | null;
 	};
-	deals: {
+	rentalContracts: {
 		id: string;
-		name: string;
-		stage: string;
-		role: string | null;
-		amount: number | null;
+		vehicle: string;
+		status: string;
+		role: string;
+		totalAmount: number | null;
 		currency: string;
-		expectedCloseDate: string | null;
+		startDate: string;
+		endDate: string;
 	}[];
 	threads: {
 		subject: string | null;
@@ -177,18 +178,32 @@ export async function readCrmHistory(
 			company: {
 				select: { id: true, name: true, domain: true, industry: true },
 			},
-			deals: {
-				orderBy: { deal: { lastActivityAt: "desc" } },
+			rentalContracts: {
+				orderBy: { lastActivityAt: "desc" },
+				select: {
+					id: true,
+					status: true,
+					totalAmount: true,
+					currency: true,
+					startDate: true,
+					endDate: true,
+					vehicle: { select: { make: true, model: true, plateNumber: true } },
+				},
+			},
+			driverOn: {
 				select: {
 					role: true,
-					deal: {
+					contract: {
 						select: {
 							id: true,
-							name: true,
-							stage: true,
-							amount: true,
+							status: true,
+							totalAmount: true,
 							currency: true,
-							expectedCloseDate: true,
+							startDate: true,
+							endDate: true,
+							vehicle: {
+								select: { make: true, model: true, plateNumber: true },
+							},
 						},
 					},
 				},
@@ -274,15 +289,30 @@ export async function readCrmHistory(
 			companyName: contact.company?.name ?? null,
 			company: contact.company,
 		},
-		deals: contact.deals.map(({ role, deal }) => ({
-			id: deal.id,
-			name: deal.name,
-			stage: deal.stage,
-			role,
-			amount: deal.amount === null ? null : Number(deal.amount),
-			currency: deal.currency,
-			expectedCloseDate: deal.expectedCloseDate?.toISOString() ?? null,
-		})),
+		rentalContracts: [
+			...contact.rentalContracts.map((contract) => ({
+				id: contract.id,
+				vehicle: `${contract.vehicle.make} ${contract.vehicle.model} (${contract.vehicle.plateNumber})`,
+				status: contract.status,
+				role: "PRIMARY",
+				totalAmount:
+					contract.totalAmount === null ? null : Number(contract.totalAmount),
+				currency: contract.currency,
+				startDate: contract.startDate.toISOString(),
+				endDate: contract.endDate.toISOString(),
+			})),
+			...contact.driverOn.map(({ role, contract }) => ({
+				id: contract.id,
+				vehicle: `${contract.vehicle.make} ${contract.vehicle.model} (${contract.vehicle.plateNumber})`,
+				status: contract.status,
+				role,
+				totalAmount:
+					contract.totalAmount === null ? null : Number(contract.totalAmount),
+				currency: contract.currency,
+				startDate: contract.startDate.toISOString(),
+				endDate: contract.endDate.toISOString(),
+			})),
+		],
 		threads: threads.map((thread) => ({
 			subject: thread.subject,
 			messageCount: thread.messageCount,
