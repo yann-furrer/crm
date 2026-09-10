@@ -3,12 +3,15 @@ import { Input, Mutation, Query, Router, UseMiddlewares } from "nestjs-trpc";
 import type { z } from "zod";
 import { AuthMiddleware } from "../trpc/middlewares/auth.middleware";
 import {
+	vehicleAvailabilityInput,
 	vehicleBulkInput,
 	vehicleBulkOwnerInput,
 	vehicleBulkStatusInput,
+	vehicleClearFinancingInput,
 	vehicleCreateInput,
 	vehicleIdInput,
 	vehicleListInput,
+	vehicleSetFinancingInput,
 	vehicleUpdateArgs,
 } from "./vehicles.contracts";
 import { VehiclesService } from "./vehicles.service";
@@ -28,6 +31,11 @@ export class VehiclesRouter {
 	@Query({ input: vehicleIdInput })
 	async byId(@Input("id") id: string) {
 		return this.vehicles.byId(id);
+	}
+
+	@Query({ input: vehicleAvailabilityInput })
+	async availability(@Input() input: z.infer<typeof vehicleAvailabilityInput>) {
+		return this.vehicles.availability(input);
 	}
 
 	@Mutation({ input: vehicleCreateInput })
@@ -58,5 +66,15 @@ export class VehiclesRouter {
 	@Mutation({ input: vehicleBulkInput })
 	async bulkDelete(@Input("ids") ids: string[]) {
 		return this.vehicles.bulkDelete(ids);
+	}
+
+	@Mutation({ input: vehicleSetFinancingInput })
+	async setFinancing(@Input() input: z.infer<typeof vehicleSetFinancingInput>) {
+		return this.vehicles.setFinancing(input);
+	}
+
+	@Mutation({ input: vehicleClearFinancingInput })
+	async clearFinancing(@Input("vehicleId") vehicleId: string) {
+		return this.vehicles.clearFinancing(vehicleId);
 	}
 }

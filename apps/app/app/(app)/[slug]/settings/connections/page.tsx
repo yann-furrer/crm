@@ -28,7 +28,7 @@ export default function ConnectionsSettingsPage({
 				<PageShellHeading>
 					<PageShellTitle>Connections</PageShellTitle>
 					<PageShellDescription>
-						Your meetings and email, on the companies they belong to.
+						Your meetings and email, on the contacts they belong to.
 					</PageShellDescription>
 				</PageShellHeading>
 			</PageShellHeader>

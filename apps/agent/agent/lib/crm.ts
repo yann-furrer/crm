@@ -1,5 +1,5 @@
 import { db, EnrichmentStatus } from "@crm/db";
-import { domainOf, isDerivedName } from "./names";
+import { isDerivedName } from "./names";
 import type { Person } from "./socials";
 
 export type WorkItem = {
@@ -7,8 +7,6 @@ export type WorkItem = {
 	fullName: string;
 	email: string | null;
 	title: string | null;
-	companyName: string | null;
-	companyDomain: string | null;
 	linkedinUrl: string | null;
 	needs: {
 		identity: boolean;
@@ -34,7 +32,6 @@ export async function contactsNeedingWork(limit: number): Promise<WorkItem[]> {
 			title: true,
 			linkedinUrl: true,
 			socialsCheckedAt: true,
-			company: { select: { name: true, domain: true } },
 			brief: { select: { contactId: true } },
 		},
 		orderBy: { createdAt: "asc" },
@@ -46,9 +43,6 @@ export async function contactsNeedingWork(limit: number): Promise<WorkItem[]> {
 		fullName: [row.firstName, row.lastName].filter(Boolean).join(" "),
 		email: row.email,
 		title: row.title,
-		companyName: row.company?.name ?? null,
-		companyDomain:
-			row.company?.domain ?? (row.email ? domainOf(row.email) : null),
 		linkedinUrl: row.linkedinUrl,
 		needs: {
 			identity: isDerivedName(row.email, row.firstName, row.lastName),
@@ -68,7 +62,6 @@ export async function personForVerification(
 			lastName: true,
 			title: true,
 			email: true,
-			company: { select: { name: true, domain: true } },
 		},
 	});
 
@@ -79,10 +72,6 @@ export async function personForVerification(
 		lastName: contact.lastName,
 		fullName: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
 		title: contact.title,
-		companyName: contact.company?.name ?? null,
-		companyDomain:
-			contact.company?.domain ??
-			(contact.email ? domainOf(contact.email) : null),
 	};
 }
 
@@ -111,13 +100,6 @@ export type CrmHistory = {
 		fullName: string;
 		email: string | null;
 		title: string | null;
-		companyName: string | null;
-		company: {
-			id: string;
-			name: string;
-			domain: string | null;
-			industry: string | null;
-		} | null;
 	};
 	rentalContracts: {
 		id: string;
@@ -154,7 +136,6 @@ export type CrmHistory = {
 		meetings: number;
 		nextMeetingAt: string | null;
 	};
-	colleagues: { id: string; name: string; title: string | null }[];
 };
 
 export async function readCrmHistory(
@@ -174,10 +155,6 @@ export async function readCrmHistory(
 			lastName: true,
 			email: true,
 			title: true,
-			companyId: true,
-			company: {
-				select: { id: true, name: true, domain: true, industry: true },
-			},
 			rentalContracts: {
 				orderBy: { lastActivityAt: "desc" },
 				select: {
@@ -215,7 +192,7 @@ export async function readCrmHistory(
 	const includeEmail = options.includeEmail ?? true;
 	const includeCalendar = options.includeCalendar ?? true;
 
-	const [threads, meetings, colleagues] = await Promise.all([
+	const [threads, meetings] = await Promise.all([
 		includeEmail
 			? db.emailThread.findMany({
 					where: { contactId },
@@ -261,14 +238,6 @@ export async function readCrmHistory(
 					},
 				})
 			: Promise.resolve([]),
-		contact.companyId
-			? db.contact.findMany({
-					where: { companyId: contact.companyId, id: { not: contactId } },
-					select: { id: true, firstName: true, lastName: true, title: true },
-					take: 8,
-					orderBy: { lastActivityAt: "desc" },
-				})
-			: Promise.resolve([]),
 	]);
 
 	const inbound = threads
@@ -286,8 +255,6 @@ export async function readCrmHistory(
 			fullName: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
 			email: contact.email,
 			title: contact.title,
-			companyName: contact.company?.name ?? null,
-			company: contact.company,
 		},
 		rentalContracts: [
 			...contact.rentalContracts.map((contract) => ({
@@ -345,11 +312,6 @@ export async function readCrmHistory(
 			meetings: meetings.length,
 			nextMeetingAt: upcoming[0]?.startsAt.toISOString() ?? null,
 		},
-		colleagues: colleagues.map((colleague) => ({
-			id: colleague.id,
-			name: [colleague.firstName, colleague.lastName].filter(Boolean).join(" "),
-			title: colleague.title,
-		})),
 	};
 }
 
@@ -385,7 +347,7 @@ export async function writeTimelineNote(
 ): Promise<string | null> {
 	const contact = await db.contact.findUnique({
 		where: { id: contactId },
-		select: { companyId: true, ownerId: true },
+		select: { ownerId: true },
 	});
 	if (!contact) return null;
 
@@ -402,7 +364,6 @@ export async function writeTimelineNote(
 			body,
 			occurredAt: new Date(),
 			contactId,
-			companyId: contact.companyId,
 			createdById: author,
 			meta: { ...meta, agent: "people-research" },
 		},

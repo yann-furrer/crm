@@ -35,11 +35,4 @@ async function write(
 			data,
 		});
 	}
-
-	if (subject.companyId) {
-		await db.company.updateMany({
-			where: { id: subject.companyId, ...guard },
-			data,
-		});
-	}
 }

@@ -131,7 +131,8 @@ function Forget({
 
 export function useConversations(recordId: {
 	contactId?: string;
-	companyId?: string;
+	vehicleId?: string;
+	rentalContractId?: string;
 }) {
 	const trpc = useTRPC();
 	return useQuery(trpc.conversations.list.queryOptions(recordId));

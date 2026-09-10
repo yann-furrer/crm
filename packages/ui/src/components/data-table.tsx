@@ -105,6 +105,8 @@ export type DataTableProps<TRow, TSub> = {
 	empty?: ReactNode;
 	className?: string;
 	tableClassName?: string;
+	renderCard?: (row: TRow) => ReactNode;
+	cardsClassName?: string;
 };
 
 const HIDE_BELOW_CLASS = {
@@ -167,7 +169,10 @@ export function DataTable<TRow, TSub = unknown>({
 	empty,
 	className,
 	tableClassName,
+	renderCard,
+	cardsClassName,
 }: DataTableProps<TRow, TSub>) {
+	const cardMode = renderCard != null;
 	const [expandedIds, setExpandedIds] = useQueryState(
 		"expand",
 		parseAsArrayOf(parseAsString).withDefault([]),
@@ -184,7 +189,9 @@ export function DataTable<TRow, TSub = unknown>({
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const filtersId = useId();
 
-	const hideable = columns.filter((column) => column.hideable !== false);
+	const hideable = cardMode
+		? []
+		: columns.filter((column) => column.hideable !== false);
 	const visibleColumns = columns.filter(
 		(column) => !hidden.includes(column.id),
 	);
@@ -455,221 +462,273 @@ export function DataTable<TRow, TSub = unknown>({
 				</div>
 			</div>
 
-			<Table
-				className={cn(
-					"table-fixed [&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4",
-					tableClassName,
-				)}
-				containerClassName="min-h-0 flex-1 overflow-auto rounded-lg border bg-card"
-				overlay={
-					deferredRows.length === 0 ? (
-						<div className="absolute inset-x-0 top-11 bottom-0 flex items-center justify-center px-4 py-8 text-center text-muted-foreground">
+			{cardMode ? (
+				<div className="min-h-0 flex-1 overflow-auto">
+					{deferredRows.length === 0 ? (
+						<div className="flex min-h-40 items-center justify-center rounded-lg border bg-card px-4 py-8 text-center text-muted-foreground">
 							{loading ? <Spinner /> : (empty ?? "No results found.")}
 						</div>
-					) : null
-				}
-			>
-				<TableHeader className="sticky top-0 z-10 bg-muted [&_th]:bg-muted [&_tr]:border-0 [&_tr]:shadow-[inset_0_-1px_0_var(--border)]">
-					<TableRow>
-						{selection && (
-							<TableHead className={cn("h-11 w-10 px-3", HIDE_BELOW_CLASS.sm)}>
-								<Checkbox
-									checked={
-										selection.state.allSelected
-											? true
-											: selection.state.someSelected
-												? "indeterminate"
-												: false
-									}
-									onCheckedChange={(checked) =>
-										selection.state.toggleAll(checked === true)
-									}
-									disabled={deferredRows.length === 0}
-									aria-label="Select every row on this page"
-								/>
-							</TableHead>
-						)}
-						{anyExpandable && (
-							<TableHead className="h-11 w-10 px-3">
-								<span className="sr-only">Detail</span>
-							</TableHead>
-						)}
-						{visibleColumns.map((column) => {
-							const isActive = query.sort === column.id;
-							return (
-								<TableHead
-									key={column.id}
-									className={cn(
-										"h-11 overflow-hidden px-3 font-normal text-muted-foreground",
-										column.width,
-										ALIGN_CLASS[column.align ?? "left"],
-										column.hideBelow && HIDE_BELOW_CLASS[column.hideBelow],
-										column.headClassName,
-									)}
-									aria-sort={
-										isActive
-											? query.dir === "asc"
-												? "ascending"
-												: "descending"
-											: undefined
-									}
-								>
-									{column.sortable ? (
-										<Button
-											variant="ghost"
-											size="xs"
-											onClick={() => query.toggleSort(column.id)}
-											className={cn(
-												"-ml-2 font-normal text-muted-foreground hover:text-foreground",
-												column.align === "right" && "-mr-2 ml-0 flex-row-reverse",
-												column.align === "center" && "mx-auto",
-											)}
-										>
-											{column.header}
-											<SortIndicator active={isActive} dir={query.dir} />
-										</Button>
-									) : (
-										column.header
-									)}
-								</TableHead>
-							);
-						})}
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{deferredRows.map((row) => {
-						const id = getRowId(row);
-						const canExpand = expandable?.isExpandable(row) ?? false;
-						const isOpen = canExpand && expanded.has(id);
-						const isSelected = selection?.state.has(id) ?? false;
-						const clickable = canExpand || !!onRowClick;
-						const handleClick = () => {
-							if (canExpand) {
-								setExpandedIds((prev) => {
-									const set = new Set(prev ?? []);
-									if (set.has(id)) set.delete(id);
-									else set.add(id);
-									const next = [...set];
-									return next.length > 0 ? next : null;
-								});
-							} else {
-								onRowClick?.(row);
-							}
-						};
-						return (
-							<Fragment key={id}>
-								<TableRow
-									data-state={isSelected ? "selected" : undefined}
-									onClick={clickable ? handleClick : undefined}
-									onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
-									onFocus={onRowHover ? () => onRowHover(row) : undefined}
-									className={
-										clickable
-											? anyExpandable
-												? ROW_ACCENT_EXPANDABLE
-												: ROW_ACCENT
-											: undefined
-									}
-								>
-									{selection && (
-										<TableCell
-											className={cn("w-10 px-3 py-3", HIDE_BELOW_CLASS.sm)}
-											onClick={(event) => event.stopPropagation()}
-										>
-											<Checkbox
-												checked={isSelected}
-												onCheckedChange={(checked) =>
-													selection.state.toggle(id, checked === true)
-												}
-												aria-label={
-													selection.rowLabel
-														? `Select ${selection.rowLabel(row)}`
-														: "Select row"
-												}
-											/>
-										</TableCell>
-									)}
-									{anyExpandable && (
-										<TableCell className="w-10 px-3 py-3 text-center text-muted-foreground">
-											{canExpand && (
-												<ChevronRight
-													size={12}
-													className={cn(
-														"inline-block transition-transform",
-														isOpen && "rotate-90",
-													)}
+					) : (
+						<div
+							className={cn(
+								"grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3",
+								cardsClassName,
+							)}
+						>
+							{deferredRows.map((row) => {
+								const id = getRowId(row);
+								const isSelected = selection?.state.has(id) ?? false;
+								return (
+									<div key={id} className="relative">
+										{selection && (
+											<div
+												className="absolute left-3 top-3 z-10"
+												onClick={(event) => event.stopPropagation()}
+											>
+												<Checkbox
+													checked={isSelected}
+													onCheckedChange={(checked) =>
+														selection.state.toggle(id, checked === true)
+													}
+													aria-label={
+														selection.rowLabel
+															? `Select ${selection.rowLabel(row)}`
+															: "Select row"
+													}
 												/>
-											)}
-										</TableCell>
-									)}
-									{visibleColumns.map((column) => (
-										<TableCell
-											key={column.id}
-											className={cn(
-												"overflow-hidden px-3 py-3",
-												column.width,
-												ALIGN_CLASS[column.align ?? "left"],
-												column.hideBelow && HIDE_BELOW_CLASS[column.hideBelow],
-												column.cellClassName,
-											)}
+											</div>
+										)}
+										<div
+											onClick={onRowClick ? () => onRowClick(row) : undefined}
+											onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
+											onFocus={onRowHover ? () => onRowHover(row) : undefined}
+											className={onRowClick ? "cursor-pointer" : undefined}
 										>
-											{column.cell(row)}
-										</TableCell>
-									))}
-								</TableRow>
-								{isOpen &&
-									expandable?.getSubRows(row).map((sub) => {
-										const subClickable = !!expandable.onSubRowClick;
-										return (
-											<TableRow
-												key={expandable.getSubRowId(sub, row)}
-												onClick={
-													subClickable
-														? () => expandable.onSubRowClick?.(sub, row)
-														: undefined
-												}
+											{renderCard(row)}
+										</div>
+									</div>
+								);
+							})}
+						</div>
+					)}
+				</div>
+			) : (
+				<Table
+					className={cn(
+						"table-fixed [&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4",
+						tableClassName,
+					)}
+					containerClassName="min-h-0 flex-1 overflow-auto rounded-lg border bg-card"
+					overlay={
+						deferredRows.length === 0 ? (
+							<div className="absolute inset-x-0 top-11 bottom-0 flex items-center justify-center px-4 py-8 text-center text-muted-foreground">
+								{loading ? <Spinner /> : (empty ?? "No results found.")}
+							</div>
+						) : null
+					}
+				>
+					<TableHeader className="sticky top-0 z-10 bg-muted [&_th]:bg-muted [&_tr]:border-0 [&_tr]:shadow-[inset_0_-1px_0_var(--border)]">
+						<TableRow>
+							{selection && (
+								<TableHead className={cn("h-11 w-10 px-3", HIDE_BELOW_CLASS.sm)}>
+									<Checkbox
+										checked={
+											selection.state.allSelected
+												? true
+												: selection.state.someSelected
+													? "indeterminate"
+													: false
+										}
+										onCheckedChange={(checked) =>
+											selection.state.toggleAll(checked === true)
+										}
+										disabled={deferredRows.length === 0}
+										aria-label="Select every row on this page"
+									/>
+								</TableHead>
+							)}
+							{anyExpandable && (
+								<TableHead className="h-11 w-10 px-3">
+									<span className="sr-only">Detail</span>
+								</TableHead>
+							)}
+							{visibleColumns.map((column) => {
+								const isActive = query.sort === column.id;
+								return (
+									<TableHead
+										key={column.id}
+										className={cn(
+											"h-11 overflow-hidden px-3 font-normal text-muted-foreground",
+											column.width,
+											ALIGN_CLASS[column.align ?? "left"],
+											column.hideBelow && HIDE_BELOW_CLASS[column.hideBelow],
+											column.headClassName,
+										)}
+										aria-sort={
+											isActive
+												? query.dir === "asc"
+													? "ascending"
+													: "descending"
+												: undefined
+										}
+									>
+										{column.sortable ? (
+											<Button
+												variant="ghost"
+												size="xs"
+												onClick={() => query.toggleSort(column.id)}
 												className={cn(
-													"bg-muted/30",
-													subClickable &&
-														(anyExpandable
-															? ROW_ACCENT_EXPANDABLE
-															: ROW_ACCENT),
+													"-ml-2 font-normal text-muted-foreground hover:text-foreground",
+													column.align === "right" && "-mr-2 ml-0 flex-row-reverse",
+													column.align === "center" && "mx-auto",
 												)}
 											>
-												{selection && (
-													<TableCell
+												{column.header}
+												<SortIndicator active={isActive} dir={query.dir} />
+											</Button>
+										) : (
+											column.header
+										)}
+									</TableHead>
+								);
+							})}
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{deferredRows.map((row) => {
+							const id = getRowId(row);
+							const canExpand = expandable?.isExpandable(row) ?? false;
+							const isOpen = canExpand && expanded.has(id);
+							const isSelected = selection?.state.has(id) ?? false;
+							const clickable = canExpand || !!onRowClick;
+							const handleClick = () => {
+								if (canExpand) {
+									setExpandedIds((prev) => {
+										const set = new Set(prev ?? []);
+										if (set.has(id)) set.delete(id);
+										else set.add(id);
+										const next = [...set];
+										return next.length > 0 ? next : null;
+									});
+								} else {
+									onRowClick?.(row);
+								}
+							};
+							return (
+								<Fragment key={id}>
+									<TableRow
+										data-state={isSelected ? "selected" : undefined}
+										onClick={clickable ? handleClick : undefined}
+										onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
+										onFocus={onRowHover ? () => onRowHover(row) : undefined}
+										className={
+											clickable
+												? anyExpandable
+													? ROW_ACCENT_EXPANDABLE
+													: ROW_ACCENT
+												: undefined
+										}
+									>
+										{selection && (
+											<TableCell
+												className={cn("w-10 px-3 py-3", HIDE_BELOW_CLASS.sm)}
+												onClick={(event) => event.stopPropagation()}
+											>
+												<Checkbox
+													checked={isSelected}
+													onCheckedChange={(checked) =>
+														selection.state.toggle(id, checked === true)
+													}
+													aria-label={
+														selection.rowLabel
+															? `Select ${selection.rowLabel(row)}`
+															: "Select row"
+													}
+												/>
+											</TableCell>
+										)}
+										{anyExpandable && (
+											<TableCell className="w-10 px-3 py-3 text-center text-muted-foreground">
+												{canExpand && (
+													<ChevronRight
+														size={12}
 														className={cn(
-															"w-10 px-3 py-2.5",
-															HIDE_BELOW_CLASS.sm,
+															"inline-block transition-transform",
+															isOpen && "rotate-90",
 														)}
 													/>
 												)}
-												{anyExpandable && (
-													<TableCell className="w-10 px-3 py-2.5" />
+											</TableCell>
+										)}
+										{visibleColumns.map((column) => (
+											<TableCell
+												key={column.id}
+												className={cn(
+													"overflow-hidden px-3 py-3",
+													column.width,
+													ALIGN_CLASS[column.align ?? "left"],
+													column.hideBelow && HIDE_BELOW_CLASS[column.hideBelow],
+													column.cellClassName,
 												)}
-												{visibleColumns.map((column) => (
-													<TableCell
-														key={column.id}
-														className={cn(
-															"overflow-hidden px-3 py-2.5 align-top",
-															column.width,
-															ALIGN_CLASS[column.align ?? "left"],
-															column.hideBelow &&
-																HIDE_BELOW_CLASS[column.hideBelow],
-															column.cellClassName,
-														)}
-													>
-														{expandable.renderSubCell(sub, column.id, row)}
-													</TableCell>
-												))}
-											</TableRow>
-										);
-									})}
-							</Fragment>
-						);
-					})}
-				</TableBody>
-			</Table>
+											>
+												{column.cell(row)}
+											</TableCell>
+										))}
+									</TableRow>
+									{isOpen &&
+										expandable?.getSubRows(row).map((sub) => {
+											const subClickable = !!expandable.onSubRowClick;
+											return (
+												<TableRow
+													key={expandable.getSubRowId(sub, row)}
+													onClick={
+														subClickable
+															? () => expandable.onSubRowClick?.(sub, row)
+															: undefined
+													}
+													className={cn(
+														"bg-muted/30",
+														subClickable &&
+															(anyExpandable
+																? ROW_ACCENT_EXPANDABLE
+																: ROW_ACCENT),
+													)}
+												>
+													{selection && (
+														<TableCell
+															className={cn(
+																"w-10 px-3 py-2.5",
+																HIDE_BELOW_CLASS.sm,
+															)}
+														/>
+													)}
+													{anyExpandable && (
+														<TableCell className="w-10 px-3 py-2.5" />
+													)}
+													{visibleColumns.map((column) => (
+														<TableCell
+															key={column.id}
+															className={cn(
+																"overflow-hidden px-3 py-2.5 align-top",
+																column.width,
+																ALIGN_CLASS[column.align ?? "left"],
+																column.hideBelow &&
+																	HIDE_BELOW_CLASS[column.hideBelow],
+																column.cellClassName,
+															)}
+														>
+															{expandable.renderSubCell(sub, column.id, row)}
+														</TableCell>
+													))}
+												</TableRow>
+											);
+										})}
+								</Fragment>
+							);
+						})}
+					</TableBody>
+				</Table>
+			)}
 
 			<TablePagination
 				page={query.page}

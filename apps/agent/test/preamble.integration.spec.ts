@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, RentalContractStatus, VehicleType } from "@crm/db";
 import {
-	companyPreamble,
 	composeClosing,
 	contactPreamble,
 	noRecordPreamble,
@@ -15,7 +14,6 @@ import { identity } from "../agent/lib/workspace";
 const suffix = process.env.TEST_RUN_ID ?? "preamble-spec";
 const domain = `fernhill-${suffix}.test`;
 
-let companyId: string;
 let vehicleId: string;
 let rentalContractId: string;
 let paulaId: string;
@@ -36,23 +34,12 @@ beforeAll(async () => {
 		select: { id: true },
 	});
 
-	const company = await db.company.create({
-		data: {
-			name: `Fernhill Systems ${suffix}`,
-			domain,
-			industry: "Security software",
-		},
-		select: { id: true },
-	});
-	companyId = company.id;
-
 	const paula = await db.contact.create({
 		data: {
 			firstName: "Paula",
 			lastName: "Marchetti",
 			title: "Growth Specialist",
 			email: `paula.marchetti@${domain}`,
-			companyId,
 			lastActivityAt: new Date(),
 		},
 		select: { id: true },
@@ -65,7 +52,6 @@ beforeAll(async () => {
 			lastName: "Okonkwo",
 			title: "Head of Security",
 			email: `tomi.okonkwo@${domain}`,
-			companyId,
 		},
 		select: { id: true },
 	});
@@ -108,60 +94,30 @@ beforeAll(async () => {
 afterAll(cleanup);
 
 async function cleanup(): Promise<void> {
-	const company = await db.company.findFirst({
-		where: { domain },
+	const contacts = await db.contact.findMany({
+		where: { email: { endsWith: `@${domain}` } },
 		select: { id: true },
 	});
+	const ids = contacts.map((contact) => contact.id);
 
-	if (company) {
-		await db.activity.deleteMany({ where: { companyId: company.id } });
-		await db.rentalContract.deleteMany({
-			where: { contact: { companyId: company.id } },
-		});
+	if (ids.length > 0) {
+		await db.activity.deleteMany({ where: { contactId: { in: ids } } });
+		await db.rentalContract.deleteMany({ where: { contactId: { in: ids } } });
 		await db.vehicle.deleteMany({
 			where: { owner: { email: `rep.${suffix}@example.test` } },
 		});
-		await db.contact.deleteMany({ where: { companyId: company.id } });
-		await db.company.delete({ where: { id: company.id } });
+		await db.contact.deleteMany({ where: { id: { in: ids } } });
 	}
 
 	await db.user.deleteMany({ where: { email: `rep.${suffix}@example.test` } });
 }
 
-describe("companyPreamble", () => {
-	it("names every contact it lists, with their id", async () => {
-		const { markdown } = await companyPreamble(companyId, rep);
-
-		expect(markdown).toContain(
-			`Paula Marchetti — Growth Specialist \`${paulaId}\``,
-		);
-		expect(markdown).toContain(`Tomi Okonkwo — Head of Security \`${tomiId}\``);
-		expect(markdown).toContain("Never ask a rep which contact they mean");
-	});
-
-	it("carries the company's own id and points at contacts for rentals", async () => {
-		const { markdown, focus } = await companyPreamble(companyId, rep);
-
-		expect(markdown).toContain(`company id \`${companyId}\``);
-		expect(markdown).toContain(
-			"a company itself has no rental contracts of its own",
-		);
-		expect(focus).toEqual({ companyId });
-	});
-
-	it("points at the company read, not the contact one", async () => {
-		const { markdown } = await companyPreamble(companyId, rep);
-
-		expect(markdown).toContain("Start with `read_company_history`");
-	});
-});
-
 describe("contactPreamble", () => {
-	it("states the company id, not just its name", async () => {
+	it("carries the contact's own id", async () => {
 		const { markdown, focus } = await contactPreamble(paulaId, rep);
 
-		expect(markdown).toContain(`company id \`${companyId}\``);
-		expect(focus).toEqual({ contactId: paulaId, companyId });
+		expect(markdown).toContain(`\`${paulaId}\``);
+		expect(focus).toEqual({ contactId: paulaId });
 	});
 
 	it("lists the rental contracts they are on", async () => {
@@ -178,18 +134,6 @@ describe("contactPreamble", () => {
 		expect(markdown).toContain(
 			`Toyota Hiace (ACTIVE, additional) \`${rentalContractId}\``,
 		);
-	});
-
-	it("offers a way out when they have no company", async () => {
-		const orphan = await db.contact.create({
-			data: { firstName: "Nobody", email: `nobody.${suffix}@example.test` },
-			select: { id: true },
-		});
-
-		const { markdown } = await contactPreamble(orphan.id, rep);
-		expect(markdown).toContain("`search_crm` will find one");
-
-		await db.contact.delete({ where: { id: orphan.id } });
 	});
 });
 
@@ -217,22 +161,20 @@ describe("rentalContractPreamble", () => {
 		expect(markdown).toContain(`vehicle id \`${vehicleId}\``);
 		expect(markdown).toContain(`renter \`${paulaId}\``);
 		expect(markdown).toContain(`additional driver \`${tomiId}\``);
-		expect(focus).toEqual({ companyId });
+		expect(focus).toEqual({ contactId: paulaId });
 	});
 });
 
 describe("who opened the session", () => {
 	it("tells a rep's session to answer the question", async () => {
-		const { markdown } = await companyPreamble(companyId, {
-			dispatched: false,
-		});
+		const { markdown } = await contactPreamble(paulaId, { dispatched: false });
 
 		expect(markdown).toContain("A rep has this record open");
 		expect(markdown).not.toContain("Nobody is waiting on a reply");
 	});
 
 	it("tells a dispatched session to do the work and stop", async () => {
-		const { markdown } = await companyPreamble(companyId, {
+		const { markdown } = await contactPreamble(paulaId, {
 			dispatched: true,
 			kind: "identity",
 		});
@@ -245,12 +187,10 @@ describe("who opened the session", () => {
 describe("sessionPreamble", () => {
 	it("routes each record kind to its own conversation", async () => {
 		const contact = await sessionPreamble({ contactId: paulaId }, rep);
-		const company = await sessionPreamble({ companyId }, rep);
 		const vehicle = await sessionPreamble({ vehicleId }, rep);
 		const rentalContract = await sessionPreamble({ rentalContractId }, rep);
 
 		expect(contact.markdown).toContain("Start with `read_crm_history`");
-		expect(company.markdown).toContain("Start with `read_company_history`");
 		expect(vehicle.markdown).toContain(
 			"A vehicle itself has no research tools",
 		);
@@ -261,7 +201,7 @@ describe("sessionPreamble", () => {
 
 	it("prefers the contact when a session carries more than one id", async () => {
 		const { markdown } = await sessionPreamble(
-			{ contactId: paulaId, companyId, vehicleId, rentalContractId },
+			{ contactId: paulaId, vehicleId, rentalContractId },
 			rep,
 		);
 
@@ -282,7 +222,6 @@ describe("every session is told who we are", () => {
 
 		for (const { markdown } of [
 			await contactPreamble(paulaId, rep),
-			await companyPreamble(companyId, rep),
 			await vehiclePreamble(vehicleId, rep),
 			await rentalContractPreamble(rentalContractId, rep),
 			await noRecordPreamble(),

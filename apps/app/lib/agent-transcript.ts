@@ -47,7 +47,6 @@ type AgentStreamEvent = {
 
 const VERBS: Record<string, string> = {
 	read_crm_history: "Read our emails and meetings with them",
-	read_company_history: "Read everything we have on the company",
 	read_rental_contract_history:
 		"Read the rental contract and where it has been",
 	search_crm: "Looked the record up in the CRM",
@@ -62,10 +61,7 @@ const VERBS: Record<string, string> = {
 	write_brief: "Wrote the background",
 	write_workspace_profile: "Wrote up who we are",
 	research_person: "Researched them on the web",
-	research_company: "Read the company's site",
-	enrich_company: "Looked up the company",
 	schedule_recheck: "Decided when to look again",
-	record_job_change: "Raised a job change",
 	list_rental_contracts: "Reviewed the rental contracts",
 	list_outstanding_work: "Looked for outstanding work",
 	set_chat_title: "Named this chat",
@@ -422,124 +418,6 @@ function hostOf(url: string): string {
 	}
 }
 
-export type DealListItem = {
-	id: string;
-	name: string;
-	stage: string;
-	amount: number | null;
-	currency: string;
-	company: {
-		id: string;
-		name: string;
-		domain: string | null;
-		iconUrl: string | null;
-		iconDarkUrl: string | null;
-		iconTone: string | null;
-		logoUrl: string | null;
-	};
-	owner: {
-		id: string;
-		name: string;
-		email: string;
-		image: string | null;
-	} | null;
-	daysSinceLastActivity: number;
-	neverActive: boolean;
-	expectedCloseDate: string | null;
-};
-
-export type DealListResult = {
-	asOf: string;
-	criteria: {
-		status: string;
-		inactiveForDays: number | null;
-		companyId: string | null;
-		ownerId: string | null;
-	};
-	deals: DealListItem[];
-	hasMore: boolean;
-};
-
-export function dealListResultOf(value: unknown): DealListResult | null {
-	const result = recordOf(value);
-	const asOf = stringOf(result.asOf);
-	const criteria = recordOf(result.criteria);
-	const status = stringOf(criteria.status);
-	const inactiveForDays = nullableNumberOf(criteria.inactiveForDays);
-	const companyId = nullableStringOf(criteria.companyId);
-	const ownerId = nullableStringOf(criteria.ownerId);
-	const rows = Array.isArray(result.deals) ? result.deals : null;
-
-	if (
-		!asOf ||
-		!status ||
-		inactiveForDays === undefined ||
-		companyId === undefined ||
-		ownerId === undefined ||
-		!rows
-	)
-		return null;
-
-	const deals = rows.map(dealListItemOf);
-	if (deals.some((deal) => deal === null)) return null;
-
-	return {
-		asOf,
-		criteria: { status, inactiveForDays, companyId, ownerId },
-		deals: deals as DealListItem[],
-		hasMore: result.hasMore === true,
-	};
-}
-
-export function groupDealListPages(
-	pages: readonly { itemId: string; value: DealListResult }[],
-): { itemId: string; value: DealListResult }[] {
-	const groups = new Map<
-		string,
-		{ itemId: string; value: DealListResult; order: number }
-	>();
-
-	for (const [index, page] of pages.entries()) {
-		const key = JSON.stringify(page.value.criteria);
-		const previous = groups.get(key);
-		const [merged] = mergeDealListResultPages(
-			previous ? [previous.value, page.value] : [page.value],
-		);
-		if (!merged) continue;
-
-		groups.set(key, {
-			itemId: page.itemId,
-			value: merged,
-			order: previous?.order ?? index,
-		});
-	}
-
-	return [...groups.values()]
-		.sort((left, right) => left.order - right.order)
-		.map(({ itemId, value }) => ({ itemId, value }));
-}
-
-export function mergeDealListResultPages(
-	results: readonly DealListResult[],
-): DealListResult[] {
-	const groups = new Map<string, DealListResult>();
-	for (const result of results) {
-		const key = JSON.stringify(result.criteria);
-		const previous = groups.get(key);
-		const deals = new Map(
-			previous?.deals.map((deal) => [deal.id, deal] as const),
-		);
-		for (const deal of result.deals) deals.set(deal.id, deal);
-
-		groups.set(key, {
-			...result,
-			deals: [...deals.values()],
-		});
-	}
-
-	return [...groups.values()];
-}
-
 function stripMarkdownTables(markdown: string): string {
 	const lines = markdown.split("\n");
 	const kept: string[] = [];
@@ -595,83 +473,6 @@ export function splitMarkdownTable(markdown: string): {
 	}
 
 	return { before: "", after: normaliseMarkdown(markdown), found: false };
-}
-
-function dealListItemOf(value: unknown): DealListItem | null {
-	const deal = recordOf(value);
-	const company = recordOf(deal.company);
-	const owner = deal.owner === null ? null : recordOf(deal.owner);
-	const id = stringOf(deal.id);
-	const name = stringOf(deal.name);
-	const stage = stringOf(deal.stage);
-	const currency = stringOf(deal.currency);
-	const companyId = stringOf(company.id);
-	const companyName = stringOf(company.name);
-	const daysSinceLastActivity = numberOf(deal.daysSinceLastActivity);
-	const amount = nullableNumberOf(deal.amount);
-	const expectedCloseDate = nullableStringOf(deal.expectedCloseDate);
-
-	if (
-		!id ||
-		!name ||
-		!stage ||
-		!currency ||
-		!companyId ||
-		!companyName ||
-		daysSinceLastActivity === null ||
-		amount === undefined ||
-		expectedCloseDate === undefined
-	) {
-		return null;
-	}
-
-	const parsedOwner = owner
-		? {
-				id: stringOf(owner.id),
-				name: stringOf(owner.name),
-				email: stringOf(owner.email),
-				image: nullableStringOf(owner.image) ?? null,
-			}
-		: null;
-	if (
-		parsedOwner &&
-		(!parsedOwner.id || !parsedOwner.name || !parsedOwner.email)
-	) {
-		return null;
-	}
-
-	return {
-		id,
-		name,
-		stage,
-		amount,
-		currency,
-		company: {
-			id: companyId,
-			name: companyName,
-			domain: nullableStringOf(company.domain) ?? null,
-			iconUrl: nullableStringOf(company.iconUrl) ?? null,
-			iconDarkUrl: nullableStringOf(company.iconDarkUrl) ?? null,
-			iconTone: nullableStringOf(company.iconTone) ?? null,
-			logoUrl: nullableStringOf(company.logoUrl) ?? null,
-		},
-		owner: parsedOwner as DealListItem["owner"],
-		daysSinceLastActivity,
-		neverActive: deal.neverActive === true,
-		expectedCloseDate,
-	};
-}
-
-function numberOf(value: unknown): number | null {
-	return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function nullableNumberOf(value: unknown): number | null | undefined {
-	return value === null ? null : (numberOf(value) ?? undefined);
-}
-
-function nullableStringOf(value: unknown): string | null | undefined {
-	return value === null ? null : (stringOf(value) ?? undefined);
 }
 
 function isMarkdownTableSeparator(line: string): boolean {

@@ -36,7 +36,7 @@ follows. Reading is not logging.
 
 ## What belongs on a record
 
-Business context only: name, title, employer, tenure, seniority, public profile,
+Business context only: name, title, tenure, seniority, public profile,
 public news. Nothing about a person outside their work, and none of the special
 categories — health, politics, religion, sexuality, ethnicity, union membership
 — regardless of what a source volunteers or an endpoint returns.

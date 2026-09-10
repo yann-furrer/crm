@@ -1,10 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	looksLikeSameCompany,
-	nameMatchesLocalPart,
-	searchTerms,
-} from "../agent/lib/names";
+import { nameMatchesLocalPart, searchTerms } from "../agent/lib/names";
 
 describe("searchTerms", () => {
 	it("strips the initial off a run-together handle", () => {
@@ -25,24 +21,6 @@ describe("searchTerms", () => {
 	it("never emits a fragment too short to search usefully", () => {
 		expect(searchTerms("abc").every((term) => term.length >= 3)).toBe(true);
 		expect(searchTerms("jo")).toEqual([]);
-	});
-});
-
-describe("looksLikeSameCompany", () => {
-	it("matches an employer to the shorter name the CRM holds", () => {
-		expect(
-			looksLikeSameCompany("Northwind Bank", "Northwind", "northwind.com"),
-		).toBe(true);
-		expect(looksLikeSameCompany("Fernhill", "Fernhill", "fernhill.com")).toBe(
-			true,
-		);
-	});
-
-	it("rejects an unrelated employer", () => {
-		expect(
-			looksLikeSameCompany("Brightwater Group", "Fernhill", "fernhill.com"),
-		).toBe(false);
-		expect(looksLikeSameCompany("", "Fernhill", "fernhill.com")).toBe(false);
 	});
 });
 

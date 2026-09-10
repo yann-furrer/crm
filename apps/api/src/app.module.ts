@@ -7,7 +7,6 @@ import { AgentModule } from "./agent/agent.module";
 import { AuthModule } from "./auth/auth.module";
 import { BackfillModule } from "./backfill/backfill.module";
 import { AppCacheModule } from "./cache/cache.module";
-import { CompaniesModule } from "./companies/companies.module";
 import { validateEnv } from "./config/env.validation";
 import { ContactsModule } from "./contacts/contacts.module";
 import { ConversationsModule } from "./conversations/conversations.module";
@@ -26,6 +25,7 @@ import { MailboxModule } from "./mailbox/mailbox.module";
 import { MaintenanceModule } from "./maintenance/maintenance.module";
 import { MicrosoftModule } from "./microsoft/microsoft.module";
 import { PaymentsModule } from "./payments/payments.module";
+import { ProfitabilityModule } from "./profitability/profitability.module";
 import { RentalContractsModule } from "./rental-contracts/rental-contracts.module";
 import { SearchModule } from "./search/search.module";
 import { SettingsModule } from "./settings/settings.module";
@@ -34,6 +34,7 @@ import { SyncModule } from "./sync/sync.module";
 import { TelemetryModule } from "./telemetry/telemetry.module";
 import { TrpcModule } from "./trpc/trpc.module";
 import { UsersModule } from "./users/users.module";
+import { VehicleChargesModule } from "./vehicle-charges/vehicle-charges.module";
 import { VehiclesModule } from "./vehicles/vehicles.module";
 import { WorkspaceModule } from "./workspace/workspace.module";
 
@@ -53,16 +54,17 @@ import { WorkspaceModule } from "./workspace/workspace.module";
 		HealthModule,
 		TrpcModule,
 		UsersModule,
-		CompaniesModule,
 		ContactsModule,
 		ConversationsModule,
 		CurrencyModule,
 		VehiclesModule,
+		VehicleChargesModule,
 		RentalContractsModule,
 		PaymentsModule,
 		IncidentsModule,
 		MaintenanceModule,
 		InspectionsModule,
+		ProfitabilityModule,
 		FieldsModule,
 		ActivitiesModule,
 		AgentModule,

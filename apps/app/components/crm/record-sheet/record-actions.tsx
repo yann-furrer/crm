@@ -32,7 +32,6 @@ import {
 } from "./record-stack";
 
 const NOUN: Record<RecordKind, string> = {
-	company: "company",
 	contact: "contact",
 	vehicle: "vehicle",
 	rentalContract: "rental contract",
@@ -57,12 +56,6 @@ function useDeleteRecord(record: RecordRef) {
 			onError,
 		}),
 	);
-	const deleteCompany = useMutation(
-		trpc.companies.delete.mutationOptions({
-			onSuccess: (deleted) => announce(deleted.name),
-			onError,
-		}),
-	);
 	const deleteVehicle = useMutation(
 		trpc.vehicles.delete.mutationOptions({
 			onSuccess: (deleted) => announce(deleted.plateNumber),
@@ -79,8 +72,6 @@ function useDeleteRecord(record: RecordRef) {
 	switch (record.kind) {
 		case "contact":
 			return deleteContact;
-		case "company":
-			return deleteCompany;
 		case "vehicle":
 			return deleteVehicle;
 		case "rentalContract":

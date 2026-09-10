@@ -7,7 +7,11 @@ import {
 	CardTitle,
 } from "@crm/ui/components/card";
 import type { ChartConfig } from "@crm/ui/components/chart";
-import { DashboardRow, StatGroup } from "@crm/ui/components/dashboard";
+import {
+	DashboardRow,
+	DashboardSection,
+	StatGroup,
+} from "@crm/ui/components/dashboard";
 import { StatCard, type StatDelta } from "@crm/ui/components/stat-card";
 import {
 	formatCount,
@@ -15,10 +19,12 @@ import {
 	formatMoneyCompact,
 	formatPercent,
 } from "@crm/ui/lib/format";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AreaTrend, DonutStat } from "@/components/dashboard-charts";
 import { rentalStatusLabel } from "@/lib/rental-status";
+import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
 import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 
@@ -26,7 +32,12 @@ type Summary = RouterOutputs["dashboard"]["summary"];
 
 const TREND_CONFIG: ChartConfig = {
 	completed: { label: "Completed", color: "var(--success)" },
-	created: { label: "New bookings", color: "var(--chart-1)" },
+	created: { label: "Nouvelles réservations", color: "var(--chart-1)" },
+};
+
+const PROFITABILITY_TREND_CONFIG: ChartConfig = {
+	revenueCents: { label: "Revenue", color: "var(--success)" },
+	expensesCents: { label: "Expenses", color: "var(--chart-5)" },
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -54,6 +65,7 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 
 	const {
 		fleet,
+		today,
 		completedThisMonth,
 		completedPrevMonth,
 		performance,
@@ -90,6 +102,46 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 
 	return (
 		<div className="flex flex-col gap-6">
+			<DashboardSection
+				title="Today"
+				description="Live snapshot of the fleet and cash flow"
+			>
+				<StatGroup>
+					<StatCard
+						label="Locations en cours"
+						value={formatCount(today.rentalsInProgress, "rental")}
+						description="Active contracts right now"
+					/>
+					<StatCard
+						label="Véhicules loués"
+						value={formatCount(today.vehiclesRented, "vehicle")}
+						description="Véhicules loués aujourd’hui"
+					/>
+					<StatCard
+						label="Returns due today"
+						value={formatCount(today.returnsDue, "return")}
+						description="Contrats dont le retour est prévu aujourd’hui"
+					/>
+					<StatCard
+						label="Véhicules disponibles"
+						value={formatCount(today.availableVehicles, "vehicle")}
+						description="Ready to be assigned to a new rental"
+					/>
+				</StatGroup>
+				<StatGroup>
+					<StatCard
+						label="Value in progress"
+						value={money(today.valueInProgressCents)}
+						description="Open rental value scheduled for today"
+					/>
+					<StatCard
+						label="Collected today"
+						value={money(today.paymentsCents)}
+						description="Completed payments recorded since midnight"
+					/>
+				</StatGroup>
+			</DashboardSection>
+
 			<StatGroup>
 				<StatCard
 					label="Completed this month"
@@ -128,7 +180,7 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 					}
 					description={
 						performance.avgDurationDays === null
-							? "No completions to measure"
+							? "Aucun retour à mesurer"
 							: `${performance.avgDurationDays}-day average duration`
 					}
 				/>
@@ -171,7 +223,7 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 							/>
 						</div>
 					) : (
-						<EmptyChart label="No contracts completed or created yet" />
+						<EmptyChart label="Aucun contrat terminé ou créé pour le moment" />
 					)}
 				</ChartPanel>
 
@@ -219,7 +271,65 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 					)}
 				</ChartPanel>
 			</DashboardRow>
+
+			<ProfitabilitySection />
 		</div>
+	);
+}
+
+function ProfitabilitySection() {
+	const trpc = useTRPC();
+	const query = useQuery(trpc.profitability.summary.queryOptions({}));
+	const data = query.data;
+
+	if (!data) return null;
+
+	const money = (cents: number) =>
+		formatMoneyCompact(cents, data.reportingCurrency);
+	const exact = (value: number | string) =>
+		formatMoney(Number(value), data.reportingCurrency);
+	const hasTrend = data.trend.some(
+		(point) => point.revenueCents > 0 || point.expensesCents > 0,
+	);
+	const margin =
+		data.lifetime.revenueCents > 0
+			? formatPercent(data.lifetime.netCents / data.lifetime.revenueCents)
+			: "—";
+
+	return (
+		<DashboardSection
+			title="Profitability"
+			description="Revenue against financing, charges, maintenance and incidents, across the fleet"
+		>
+			<StatGroup>
+				<StatCard label="Revenue" value={money(data.lifetime.revenueCents)} />
+				<StatCard label="Expenses" value={money(data.lifetime.expensesCents)} />
+				<StatCard label="Net" value={money(data.lifetime.netCents)} />
+				<StatCard label="Margin" value={margin} />
+			</StatGroup>
+
+			<ChartPanel
+				title="Revenue vs. expenses"
+				description="Last six months, across the fleet"
+			>
+				{hasTrend ? (
+					<div className="flex flex-1 flex-col justify-center py-4">
+						<AreaTrend
+							data={data.trend}
+							config={PROFITABILITY_TREND_CONFIG}
+							xKey="month"
+							height={196}
+							variant="gradient"
+							bloom="high"
+							showLegend
+							formatValue={exact}
+						/>
+					</div>
+				) : (
+					<EmptyChart label="Aucun revenu ou coût enregistré pour le moment" />
+				)}
+			</ChartPanel>
+		</DashboardSection>
 	);
 }
 

@@ -12,13 +12,12 @@ export type Opened = {
 
 export type Preamble = {
 	markdown: string;
-	focus: { contactId?: string | null; companyId?: string | null };
+	focus: { contactId?: string | null };
 };
 
 export async function sessionPreamble(
 	record: {
 		contactId?: string | null;
-		companyId?: string | null;
 		vehicleId?: string | null;
 		rentalContractId?: string | null;
 	},
@@ -26,7 +25,6 @@ export async function sessionPreamble(
 ): Promise<Preamble> {
 	if (opened.kind === "workspace-profile") return workspacePreamble();
 	if (record.contactId) return contactPreamble(record.contactId, opened);
-	if (record.companyId) return companyPreamble(record.companyId, opened);
 	if (record.vehicleId) return vehiclePreamble(record.vehicleId, opened);
 	if (record.rentalContractId) {
 		return rentalContractPreamble(record.rentalContractId, opened);
@@ -74,7 +72,6 @@ export async function contactPreamble(
 			lastName: true,
 			email: true,
 			title: true,
-			company: { select: { id: true, name: true, domain: true } },
 			brief: { select: { refreshedAt: true } },
 			rentalContracts: {
 				orderBy: { lastActivityAt: "desc" },
@@ -144,11 +141,6 @@ export async function contactPreamble(
 			"who this person is, whether they are still there, or what to know before a call",
 		),
 		"",
-		contact.company
-			? `They work at **${contact.company.name}**${
-					contact.company.domain ? ` (${contact.company.domain})` : ""
-				}, company id \`${contact.company.id}\` — pass that straight to \`read_company_history\`, \`enrich_company\` or \`research_company\` when the question reaches past this one person.`
-			: "They are not attached to a company. `search_crm` will find one by name or domain if the conversation needs it.",
 		rentalContracts
 			? `They are on: ${rentalContracts}.`
 			: "They are not on any rental contract.",
@@ -167,75 +159,8 @@ export async function contactPreamble(
 
 	return {
 		markdown,
-		focus: { contactId, companyId: contact.company?.id ?? null },
+		focus: { contactId },
 	};
-}
-
-export async function companyPreamble(
-	companyId: string,
-	opened: Opened,
-): Promise<Preamble> {
-	const company = await db.company.findUnique({
-		where: { id: companyId },
-		select: {
-			name: true,
-			domain: true,
-			industry: true,
-			description: true,
-			contacts: {
-				orderBy: [{ lastActivityAt: "desc" }, { createdAt: "asc" }],
-				take: 12,
-				select: { id: true, firstName: true, lastName: true, title: true },
-			},
-			_count: { select: { contacts: true } },
-		},
-	});
-
-	if (!company) {
-		return { markdown: await closing(), focus: { companyId } };
-	}
-
-	const people = company.contacts
-		.map((person) => {
-			const name = [person.firstName, person.lastName]
-				.filter(Boolean)
-				.join(" ");
-			return `- ${name}${person.title ? ` — ${person.title}` : ""} \`${person.id}\``;
-		})
-		.join("\n");
-
-	const more =
-		company._count.contacts > company.contacts.length
-			? `\n- …and ${company._count.contacts - company.contacts.length} more; \`read_company_history\` lists them all.`
-			: "";
-
-	const markdown = [
-		"## This session",
-		"",
-		`You are working on **${company.name}**${
-			company.domain ? ` (${company.domain})` : ""
-		}${company.industry ? `, ${company.industry}` : ""} — company id \`${companyId}\`.`,
-		"",
-		opening(
-			opened,
-			"what this company does, who we know there, or what has changed recently",
-		),
-		"",
-		people
-			? `### Who we know there (${company._count.contacts})\n\n${people}${more}\n\nThose are contact ids. Use them directly — with \`read_crm_history\`, \`identify_contact\` or \`record_fact\`. Never ask a rep which contact they mean without naming these first. If any of them is renting a vehicle, \`read_crm_history\` on their id shows it — a company itself has no rental contracts of its own.`
-			: "We have no contacts on file here yet.",
-		company.description
-			? "There is already a description on the record."
-			: "There is no description on the record yet.",
-		"",
-		"Start with `read_company_history` on this company id — it returns the people, the correspondence and the notes in one free call.",
-		"",
-		await closing(),
-	]
-		.filter(Boolean)
-		.join("\n");
-
-	return { markdown, focus: { companyId } };
 }
 
 export async function vehiclePreamble(
@@ -336,7 +261,6 @@ export async function rentalContractPreamble(
 					firstName: true,
 					lastName: true,
 					title: true,
-					company: { select: { id: true } },
 				},
 			},
 			drivers: {
@@ -388,14 +312,14 @@ export async function rentalContractPreamble(
 		"",
 		"Start with `read_rental_contract_history` on this rental contract id. It returns the status history, the last reply from the renter's side and the next meeting — which is how you answer *where does this stand* rather than reciting the status field back.",
 		"",
-		"You can research the renter and their company with the usual tools — a rental contract itself has no fields to enrich, so anything you learn is recorded against them.",
+		"You can research the renter with the usual tools — a rental contract itself has no fields to enrich, so anything you learn is recorded against them.",
 		"",
 		await closing(),
 	].join("\n");
 
 	return {
 		markdown,
-		focus: { companyId: contract.contact.company?.id ?? null },
+		focus: { contactId: contract.contact.id },
 	};
 }
 
@@ -406,9 +330,8 @@ export async function noRecordPreamble(): Promise<Preamble> {
 			"",
 			"No record was named, so nothing is in focus yet.",
 			"`list_outstanding_work` shows contacts with research outstanding, and",
-			"`search_crm` finds any contact, company, vehicle or rental contract by",
-			"name, plate number, email address or domain. Look the record up rather",
-			"than asking for an id.",
+			"`search_crm` finds any contact or rental contract by name, plate number",
+			"or email address. Look the record up rather than asking for an id.",
 			"",
 			await closing(),
 		].join("\n"),

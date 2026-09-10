@@ -2,7 +2,6 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { companiesSearchParams } from "@/app/(app)/[slug]/companies/companies-search-params";
 import { contactsSearchParams } from "@/app/(app)/[slug]/contacts/contacts-search-params";
 import { rentalContractsSearchParams } from "@/app/(app)/[slug]/rental-contracts/rental-contracts-search-params";
 import { vehiclesSearchParams } from "@/app/(app)/[slug]/vehicles/vehicles-search-params";
@@ -10,7 +9,6 @@ import { useTRPC } from "@/lib/trpc/client";
 
 export type Section =
 	| "/"
-	| "/companies"
 	| "/contacts"
 	| "/vehicles"
 	| "/rental-contracts"
@@ -26,13 +24,6 @@ export function usePrefetchSection(): (section: string) => void {
 				case "/":
 					void queryClient.prefetchQuery(
 						trpc.dashboard.summary.queryOptions({ scope: "me" }),
-					);
-					return;
-				case "/companies":
-					void queryClient.prefetchQuery(
-						trpc.companies.list.queryOptions(
-							companiesSearchParams.defaultInput(),
-						),
 					);
 					return;
 				case "/contacts":

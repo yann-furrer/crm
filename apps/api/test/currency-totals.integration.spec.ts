@@ -22,7 +22,6 @@ const rentalContracts = new RentalContractsService(
 );
 const dashboard = new DashboardService(db, conversion);
 
-let companyId: string;
 let renterId: string;
 let vehicleCounter = 0;
 let previousReportingCurrency: string | null = null;
@@ -128,21 +127,12 @@ beforeAll(async () => {
 		update: {},
 	});
 
-	const company = await db.company.upsert({
-		where: { domain },
-		create: { name: `Money Co ${suffix}`, domain },
-		update: {},
-		select: { id: true },
-	});
-	companyId = company.id;
-
 	const renter = await db.contact.upsert({
 		where: { email: `renter@${domain}` },
 		create: {
 			firstName: "Money",
 			lastName: "Renter",
 			email: `renter@${domain}`,
-			companyId,
 		},
 		update: {},
 		select: { id: true },
@@ -164,8 +154,7 @@ afterAll(async () => {
 	await db.vehicle.deleteMany({
 		where: { plateNumber: { startsWith: platePrefix } },
 	});
-	await db.contact.deleteMany({ where: { companyId } });
-	await db.company.deleteMany({ where: { domain } });
+	await db.contact.deleteMany({ where: { email: { endsWith: `@${domain}` } } });
 	await db.user.deleteMany({ where: { id: userId } });
 	await clearRates();
 

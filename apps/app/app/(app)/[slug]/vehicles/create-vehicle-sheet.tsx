@@ -41,11 +41,17 @@ const TYPE_OPTIONS = [
 	{ value: "MINIBUS", label: "Minibus" },
 ];
 
+const FUEL_OPTIONS = [
+	{ value: "DIESEL", label: "Diesel" },
+	{ value: "GASOLINE", label: "Gasoline" },
+	{ value: "ELECTRIC", label: "Electric" },
+];
+
 function AddButton(props: ComponentProps<typeof Button>) {
 	return (
 		<Button {...props}>
 			<Icon icon={Add} data-icon="inline-start" />
-			New vehicle
+			Nouveau véhicule
 		</Button>
 	);
 }
@@ -68,6 +74,7 @@ function CreateVehicleForm() {
 		parseAsBoolean.withDefault(false),
 	);
 	const [type, setType] = useState("CAR");
+	const [fuelType, setFuelType] = useState("GASOLINE");
 	const [make, setMake] = useState("");
 	const [model, setModel] = useState("");
 	const [plateNumber, setPlateNumber] = useState("");
@@ -113,9 +120,9 @@ function CreateVehicleForm() {
 			</SheetTrigger>
 			<SheetContent side="right">
 				<SheetHeader>
-					<SheetTitle>New vehicle</SheetTitle>
+					<SheetTitle>Nouveau véhicule</SheetTitle>
 					<SheetDescription>
-						Add it to the fleet with its plate number and a fleet manager.
+						Ajoutez-le à la flotte avec son immatriculation.
 					</SheetDescription>
 				</SheetHeader>
 
@@ -127,6 +134,7 @@ function CreateVehicleForm() {
 						const parsed = Number.parseFloat(dailyRate);
 						create.mutate({
 							type: type as never,
+							fuelType: fuelType as never,
 							make,
 							model,
 							plateNumber,
@@ -155,7 +163,23 @@ function CreateVehicleForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={makeId}>Make</FieldLabel>
+							<FieldLabel htmlFor="create-vehicle-fuel">Carburant</FieldLabel>
+							<Select value={fuelType} onValueChange={setFuelType}>
+								<SelectTrigger id="create-vehicle-fuel">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{FUEL_OPTIONS.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor={makeId}>Marque</FieldLabel>
 							<Input
 								id={makeId}
 								value={make}
@@ -167,7 +191,7 @@ function CreateVehicleForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={modelId}>Model</FieldLabel>
+							<FieldLabel htmlFor={modelId}>Modèle</FieldLabel>
 							<Input
 								id={modelId}
 								value={model}
@@ -179,7 +203,7 @@ function CreateVehicleForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={plateId}>Plate number</FieldLabel>
+							<FieldLabel htmlFor={plateId}>Immatriculation</FieldLabel>
 							<Input
 								id={plateId}
 								value={plateNumber}
@@ -209,7 +233,7 @@ function CreateVehicleForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={rateId}>Daily rate</FieldLabel>
+							<FieldLabel htmlFor={rateId}>Tarif journalier</FieldLabel>
 							<Input
 								id={rateId}
 								value={dailyRate}

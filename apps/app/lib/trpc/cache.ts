@@ -9,14 +9,13 @@ type Options = {
 	settle?: Settle;
 };
 
-type RecordKind = "company" | "contact" | "vehicle" | "rentalContract";
+type RecordKind = "contact" | "vehicle" | "rentalContract";
 
 type RemovedRecord = { kind: RecordKind; id: string };
 
 type RemovedRecords = { kind: RecordKind; ids: string[] };
 
 export type CrmCache = {
-	company(id?: string, options?: Options): Promise<void>;
 	contact(id?: string, options?: Options): Promise<void>;
 	vehicle(id?: string, options?: Options): Promise<void>;
 	rentalContract(id?: string, options?: Options): Promise<void>;
@@ -63,7 +62,6 @@ export function useCrmCache(): CrmCache {
 	];
 
 	const listKeys = () => [
-		trpc.companies.list.queryKey(),
 		trpc.contacts.list.queryKey(),
 		trpc.vehicles.list.queryKey(),
 		trpc.rentalContracts.list.queryKey(),
@@ -72,7 +70,6 @@ export function useCrmCache(): CrmCache {
 
 	const removeRecords = (kind: RecordKind, ids: string[]): Promise<void> => {
 		const byId = {
-			company: trpc.companies.byId,
 			contact: trpc.contacts.byId,
 			vehicle: trpc.vehicles.byId,
 			rentalContract: trpc.rentalContracts.byId,
@@ -81,7 +78,6 @@ export function useCrmCache(): CrmCache {
 		const gone = new Set(goneKeys.map((key) => JSON.stringify(key)));
 
 		for (const record of [
-			trpc.companies.byId,
 			trpc.contacts.byId,
 			trpc.vehicles.byId,
 			trpc.rentalContracts.byId,
@@ -101,20 +97,23 @@ export function useCrmCache(): CrmCache {
 		}
 
 		return run(
-			[...listKeys(), ...activityKeys(), trpc.dashboard.summary.queryKey()],
+			[
+				...listKeys(),
+				...activityKeys(),
+				trpc.dashboard.summary.queryKey(),
+				trpc.profitability.summary.queryKey(),
+			],
 			[],
 		);
 	};
 
 	const RECORD_BY_ID = {
-		company: () => trpc.companies.byId.queryKey(),
 		contact: () => trpc.contacts.byId.queryKey(),
 		vehicle: () => trpc.vehicles.byId.queryKey(),
 		rentalContract: () => trpc.rentalContracts.byId.queryKey(),
 	} as const;
 
 	const RECORD_LIST = {
-		company: () => trpc.companies.list.queryKey(),
 		contact: () => trpc.contacts.list.queryKey(),
 		vehicle: () => trpc.vehicles.list.queryKey(),
 		rentalContract: () => trpc.rentalContracts.list.queryKey(),
@@ -141,21 +140,6 @@ export function useCrmCache(): CrmCache {
 				options,
 			),
 
-		company: (id, options) =>
-			run(
-				[
-					id
-						? trpc.companies.byId.queryKey({ id })
-						: trpc.companies.byId.queryKey(),
-				],
-				[
-					...listKeys(),
-					trpc.contacts.byId.queryKey(),
-					trpc.dashboard.summary.queryKey(),
-				],
-				options,
-			),
-
 		contact: (id, options) =>
 			run(
 				[
@@ -165,7 +149,6 @@ export function useCrmCache(): CrmCache {
 				],
 				[
 					...listKeys(),
-					trpc.companies.byId.queryKey(),
 					trpc.rentalContracts.byId.queryKey(),
 					trpc.rentalContracts.driverOptions.queryKey(),
 				],
@@ -182,6 +165,9 @@ export function useCrmCache(): CrmCache {
 				[
 					...listKeys(),
 					trpc.rentalContracts.byId.queryKey(),
+					trpc.vehicleCharges.listByVehicle.queryKey(),
+					trpc.profitability.summary.queryKey(),
+					trpc.profitability.byVehicle.queryKey(),
 					...activityKeys(),
 					trpc.dashboard.summary.queryKey(),
 					trpc.currency.settings.queryKey(),
@@ -205,6 +191,8 @@ export function useCrmCache(): CrmCache {
 					trpc.incidents.listByVehicle.queryKey(),
 					trpc.incidents.listByContract.queryKey(),
 					trpc.vehicleInspections.listByContract.queryKey(),
+					trpc.profitability.summary.queryKey(),
+					trpc.profitability.byVehicle.queryKey(),
 					...activityKeys(),
 					trpc.dashboard.summary.queryKey(),
 					trpc.currency.settings.queryKey(),
@@ -237,7 +225,6 @@ export function useCrmCache(): CrmCache {
 				activityKeys(),
 				[
 					...listKeys(),
-					trpc.companies.byId.queryKey(),
 					trpc.contacts.byId.queryKey(),
 					trpc.vehicles.byId.queryKey(),
 					trpc.rentalContracts.byId.queryKey(),
@@ -252,7 +239,6 @@ export function useCrmCache(): CrmCache {
 				[
 					...activityKeys(),
 					...listKeys(),
-					trpc.companies.byId.queryKey(),
 					trpc.contacts.byId.queryKey(),
 					trpc.dashboard.summary.queryKey(),
 				],
@@ -265,7 +251,6 @@ export function useCrmCache(): CrmCache {
 				[
 					...activityKeys(),
 					...listKeys(),
-					trpc.companies.byId.queryKey(),
 					trpc.contacts.byId.queryKey(),
 					trpc.dashboard.summary.queryKey(),
 				],
@@ -289,8 +274,8 @@ export function useCrmCache(): CrmCache {
 					...listKeys(),
 					trpc.vehicles.byId.queryKey(),
 					trpc.rentalContracts.byId.queryKey(),
-					trpc.companies.byId.queryKey(),
 					trpc.dashboard.summary.queryKey(),
+					trpc.profitability.summary.queryKey(),
 				],
 				options,
 			),

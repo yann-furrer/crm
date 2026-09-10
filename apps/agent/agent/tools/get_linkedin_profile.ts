@@ -3,7 +3,7 @@ import { z } from "zod";
 import { enabled, unavailable } from "../lib/capabilities";
 import { spend } from "../lib/focus";
 import { getExperience, getProfile } from "../lib/linkdapi";
-import { looksLikeSameCompany, nameMatchesLocalPart } from "../lib/names";
+import { nameMatchesLocalPart } from "../lib/names";
 import { storePortrait } from "../lib/portrait";
 
 export default defineTool({
@@ -12,8 +12,6 @@ export default defineTool({
 	inputSchema: z.object({
 		slug: z.string().describe("The linkedin.com/in/<slug> handle."),
 		email: z.string().describe("The address we are trying to identify."),
-		companyName: z.string(),
-		companyDomain: z.string(),
 		includeHistory: z
 			.boolean()
 			.default(false)
@@ -25,14 +23,7 @@ export default defineTool({
 				"The CRM contact this candidate is for. Supply it and their photo is copied automatically if — and only if — the profile turns out to be them.",
 			),
 	}),
-	async execute({
-		slug,
-		email,
-		companyName,
-		companyDomain,
-		includeHistory,
-		contactId,
-	}) {
+	async execute({ slug, email, includeHistory, contactId }) {
 		if (!(await enabled("RAPIDAPI_KEY"))) {
 			return { found: false as const, ...unavailable("RAPIDAPI_KEY") };
 		}
@@ -50,15 +41,12 @@ export default defineTool({
 		const profile = result.data;
 		const local = email.split("@")[0] ?? "";
 
-		const employerMatches = profile.positions.some((position) =>
-			looksLikeSameCompany(position.name, companyName, companyDomain),
-		);
 		const nameMatches = nameMatchesLocalPart(profile, local);
 
 		const history =
 			includeHistory && profile.urn ? await getExperience(profile.urn) : null;
 
-		const isSamePerson = employerMatches && nameMatches;
+		const isSamePerson = nameMatches;
 
 		const portrait =
 			contactId && isSamePerson
@@ -75,15 +63,9 @@ export default defineTool({
 			experience: history?.ok ? history.data : null,
 			photo: portrait ?? undefined,
 			verdict: {
-				employerMatches,
 				nameMatches,
 				isSamePerson,
-				confidence:
-					employerMatches && nameMatches
-						? ("high" as const)
-						: employerMatches || nameMatches
-							? ("medium" as const)
-							: ("low" as const),
+				confidence: nameMatches ? ("high" as const) : ("low" as const),
 			},
 		};
 	},

@@ -2,17 +2,29 @@
 
 import Calendar from "@carbon/icons-react/es/Calendar";
 import ToolKit from "@carbon/icons-react/es/ToolKit";
+import TrashCan from "@carbon/icons-react/es/TrashCan";
 import Warning from "@carbon/icons-react/es/Warning";
+import { ChargeFrequency, FinancingType } from "@crm/db/enums";
 import type { FieldValueJson } from "@crm/db/fields";
+import { Button } from "@crm/ui/components/button";
+import type { ChartConfig } from "@crm/ui/components/chart";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
 import { EntityLogo } from "@crm/ui/components/entity-logo";
 import { Field, FieldLabel } from "@crm/ui/components/field";
+import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@crm/ui/components/select";
 import { SimpleTable, SimpleTableRow } from "@crm/ui/components/simple-table";
 import { StatusIndicator } from "@crm/ui/components/status-indicator";
 import { TableCell } from "@crm/ui/components/table";
 import { Textarea } from "@crm/ui/components/textarea";
-import { formatMoney } from "@crm/ui/lib/format";
+import { formatMoney, formatMoneyCompact } from "@crm/ui/lib/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -27,10 +39,12 @@ import {
 import { OwnerCell } from "@/components/crm/owner-cell";
 import { RentalStatusIndicator } from "@/components/crm/rental-status";
 import { Timeline } from "@/components/crm/timeline/timeline";
+import { AreaTrend } from "@/components/dashboard-charts";
 import {
 	DetailSheetBody,
 	DetailSheetEmpty,
 	DetailSheetProperties,
+	DetailSheetProperty,
 	DetailSheetSection,
 	DetailSheetStat,
 	DetailSheetStats,
@@ -47,6 +61,7 @@ import { RecordSheetFrame } from "./record-parts";
 import { useOpenRecord, useRecordSheetView } from "./record-stack";
 
 type Vehicle = RouterOutputs["vehicles"]["byId"];
+type VehicleCharge = RouterOutputs["vehicleCharges"]["listByVehicle"][number];
 
 const VEHICLE_TYPE_OPTIONS = [
 	{ value: "CAR", label: "Car" },
@@ -54,6 +69,12 @@ const VEHICLE_TYPE_OPTIONS = [
 	{ value: "SCOOTER", label: "Scooter" },
 	{ value: "TRUCK", label: "Truck" },
 	{ value: "MINIBUS", label: "Minibus" },
+];
+
+const VEHICLE_FUEL_OPTIONS = [
+	{ value: "DIESEL", label: "Diesel" },
+	{ value: "GASOLINE", label: "Gasoline" },
+	{ value: "ELECTRIC", label: "Electric" },
 ];
 
 const VEHICLE_STATUS_OPTIONS = [
@@ -96,6 +117,34 @@ const INCIDENT_COLUMNS = [
 	{ id: "insurance", header: "Insurance", width: "w-[16%]" },
 ];
 
+const CHARGE_COLUMNS = [
+	{ id: "label", header: "Charge", width: "w-[36%]" },
+	{ id: "frequency", header: "Frequency", width: "w-[18%]" },
+	{ id: "period", header: "Period", width: "w-[26%]" },
+	{
+		id: "amount",
+		header: "Amount",
+		width: "w-[14%]",
+		align: "right" as const,
+	},
+	{ id: "actions", header: "", width: "w-[6%]" },
+];
+
+const FINANCING_TYPE_OPTIONS = [
+	{ value: FinancingType.LOAN, label: "Loan" },
+	{ value: FinancingType.LEASING, label: "Leasing" },
+];
+
+const CHARGE_FREQUENCY_OPTIONS = [
+	{ value: ChargeFrequency.ONE_TIME, label: "One-time" },
+	{ value: ChargeFrequency.MONTHLY, label: "Monthly" },
+];
+
+const PROFITABILITY_TREND_CONFIG: ChartConfig = {
+	revenueCents: { label: "Revenue", color: "var(--success)" },
+	expensesCents: { label: "Expenses", color: "var(--chart-5)" },
+};
+
 export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 	const trpc = useTRPC();
 	const { tab, setTab } = useRecordSheetView("overview");
@@ -119,6 +168,11 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 					value: "maintenance",
 					label: "Maintenance",
 					content: <VehicleMaintenance vehicleId={vehicle.id} />,
+				},
+				{
+					value: "financing",
+					label: "Financing",
+					content: <VehicleFinancing vehicle={vehicle} />,
 				},
 				{
 					value: "incidents",
@@ -235,6 +289,12 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						value={vehicle.type}
 						options={VEHICLE_TYPE_OPTIONS}
 						onSave={(type) => save({ type: type as never })}
+					/>
+					<InlineSelectField
+						label="Fuel"
+						value={vehicle.fuelType}
+						options={VEHICLE_FUEL_OPTIONS}
+						onSave={(fuelType) => save({ fuelType: fuelType as never })}
 					/>
 					<InlineField
 						label="Make"
@@ -548,6 +608,524 @@ function MaintenanceForm({
 			</Field>
 		</QuickAddForm>
 	);
+}
+
+function VehicleFinancing({ vehicle }: { vehicle: Vehicle }) {
+	return (
+		<DetailSheetBody>
+			<FinancingSection vehicle={vehicle} />
+			<ChargesSection vehicleId={vehicle.id} />
+			<ProfitabilitySection vehicleId={vehicle.id} />
+		</DetailSheetBody>
+	);
+}
+
+function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+	const [editing, setEditing] = useState(false);
+
+	const clear = useMutation(
+		trpc.vehicles.clearFinancing.mutationOptions({
+			onSuccess: async () => {
+				await cache.vehicle(vehicle.id);
+				toast.success("Financing removed.");
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	if (editing || !vehicle.financing) {
+		return (
+			<DetailSheetSection title="Financing">
+				<FinancingForm
+					vehicle={vehicle}
+					onDone={() => setEditing(false)}
+					onCancel={vehicle.financing ? () => setEditing(false) : undefined}
+				/>
+			</DetailSheetSection>
+		);
+	}
+
+	const financing = vehicle.financing;
+
+	return (
+		<DetailSheetSection
+			title="Financing"
+			action={
+				<div className="flex items-center gap-1">
+					<Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+						Edit
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={clear.isPending}
+						onClick={() => clear.mutate({ vehicleId: vehicle.id })}
+					>
+						Remove
+					</Button>
+				</div>
+			}
+		>
+			<DetailSheetProperties>
+				<DetailSheetProperty label="Type">
+					{FINANCING_TYPE_OPTIONS.find((o) => o.value === financing.type)
+						?.label ?? financing.type}
+				</DetailSheetProperty>
+				<DetailSheetProperty label="Monthly payment">
+					{financing.monthlyPaymentCents === null ? (
+						<EmptyCellValue />
+					) : (
+						formatMoney(financing.monthlyPaymentCents, financing.currency)
+					)}
+				</DetailSheetProperty>
+				{financing.principalAmountCents === null ? null : (
+					<DetailSheetProperty label="Principal">
+						{formatMoney(financing.principalAmountCents, financing.currency)}
+					</DetailSheetProperty>
+				)}
+				{financing.interestRate === null ? null : (
+					<DetailSheetProperty label="Interest rate">
+						{financing.interestRate}%
+					</DetailSheetProperty>
+				)}
+				{financing.termMonths === null ? null : (
+					<DetailSheetProperty label="Term">
+						{financing.termMonths} months
+					</DetailSheetProperty>
+				)}
+				<DetailSheetProperty label="Start date">
+					<LocalDay date={financing.startDate} />
+				</DetailSheetProperty>
+			</DetailSheetProperties>
+		</DetailSheetSection>
+	);
+}
+
+function FinancingForm({
+	vehicle,
+	onDone,
+	onCancel,
+}: {
+	vehicle: Vehicle;
+	onDone: () => void;
+	onCancel?: () => void;
+}) {
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+	const existing = vehicle.financing;
+
+	const [type, setType] = useState<FinancingType>(
+		existing?.type ?? FinancingType.LOAN,
+	);
+	const [principal, setPrincipal] = useState(
+		existing?.principalAmountCents === null ||
+			existing?.principalAmountCents === undefined
+			? ""
+			: String(existing.principalAmountCents / 100),
+	);
+	const [monthlyPayment, setMonthlyPayment] = useState(
+		existing?.monthlyPaymentCents === null ||
+			existing?.monthlyPaymentCents === undefined
+			? ""
+			: String(existing.monthlyPaymentCents / 100),
+	);
+	const [interestRate, setInterestRate] = useState(
+		existing?.interestRate === null || existing?.interestRate === undefined
+			? ""
+			: String(existing.interestRate),
+	);
+	const [termMonths, setTermMonths] = useState(
+		existing?.termMonths === null || existing?.termMonths === undefined
+			? ""
+			: String(existing.termMonths),
+	);
+	const [startDate, setStartDate] = useState(
+		existing?.startDate ? existing.startDate.slice(0, 10) : "",
+	);
+
+	const typeId = useId();
+	const principalId = useId();
+	const monthlyPaymentId = useId();
+	const interestRateId = useId();
+	const termMonthsId = useId();
+	const startDateId = useId();
+
+	const save = useMutation(
+		trpc.vehicles.setFinancing.mutationOptions({
+			onSuccess: async () => {
+				await cache.vehicle(vehicle.id);
+				toast.success("Financing saved.");
+				onDone();
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const monthlyPaymentCents = parseAmountCents(monthlyPayment);
+	const ready = monthlyPaymentCents !== null && startDate !== "";
+
+	return (
+		<QuickAddForm
+			submitLabel={existing ? "Save financing" : "Add financing"}
+			pending={save.isPending}
+			ready={ready}
+			onCancel={onCancel ?? onDone}
+			onSubmit={() => {
+				if (monthlyPaymentCents === null) return;
+				save.mutate({
+					vehicleId: vehicle.id,
+					type,
+					currency: vehicle.currency,
+					monthlyPaymentCents,
+					principalAmountCents:
+						type === FinancingType.LOAN ? parseAmountCents(principal) : null,
+					interestRate:
+						type === FinancingType.LOAN && interestRate.trim() !== ""
+							? Number.parseFloat(interestRate)
+							: null,
+					termMonths: termMonths.trim() === "" ? null : Number(termMonths),
+					startDate,
+				});
+			}}
+		>
+			<Field>
+				<FieldLabel htmlFor={typeId}>Type</FieldLabel>
+				<Select
+					value={type}
+					onValueChange={(next) => setType(next as FinancingType)}
+				>
+					<SelectTrigger id={typeId} className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{FINANCING_TYPE_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor={monthlyPaymentId}>Monthly payment</FieldLabel>
+				<Input
+					id={monthlyPaymentId}
+					autoFocus
+					inputMode="decimal"
+					value={monthlyPayment}
+					onChange={(event) => setMonthlyPayment(event.target.value)}
+					placeholder="350"
+				/>
+			</Field>
+			{type === FinancingType.LOAN ? (
+				<Field>
+					<FieldLabel htmlFor={principalId}>Principal</FieldLabel>
+					<Input
+						id={principalId}
+						inputMode="decimal"
+						value={principal}
+						onChange={(event) => setPrincipal(event.target.value)}
+						placeholder="18000"
+					/>
+				</Field>
+			) : null}
+			{type === FinancingType.LOAN ? (
+				<Field>
+					<FieldLabel htmlFor={interestRateId}>Interest rate (%)</FieldLabel>
+					<Input
+						id={interestRateId}
+						inputMode="decimal"
+						value={interestRate}
+						onChange={(event) => setInterestRate(event.target.value)}
+						placeholder="7.5"
+					/>
+				</Field>
+			) : null}
+			<Field>
+				<FieldLabel htmlFor={termMonthsId}>Term (months)</FieldLabel>
+				<Input
+					id={termMonthsId}
+					inputMode="numeric"
+					value={termMonths}
+					onChange={(event) => setTermMonths(event.target.value)}
+					placeholder="48"
+				/>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor={startDateId}>Start date</FieldLabel>
+				<Input
+					id={startDateId}
+					type="date"
+					value={startDate}
+					onChange={(event) => setStartDate(event.target.value)}
+				/>
+			</Field>
+		</QuickAddForm>
+	);
+}
+
+function ChargesSection({ vehicleId }: { vehicleId: string }) {
+	const trpc = useTRPC();
+	const [adding, setAdding] = useState(false);
+
+	const charges = useQuery(
+		trpc.vehicleCharges.listByVehicle.queryOptions({ vehicleId }),
+	);
+
+	const rows = charges.data ?? [];
+
+	return (
+		<DetailSheetSection
+			title="Charges"
+			action={
+				adding ? null : (
+					<Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
+						Add a charge
+					</Button>
+				)
+			}
+		>
+			{adding ? (
+				<ChargeForm vehicleId={vehicleId} onDone={() => setAdding(false)} />
+			) : null}
+			{rows.length === 0 ? (
+				adding ? null : (
+					<p className="text-muted-foreground text-xs/5">
+						No recurring charges on this vehicle yet.
+					</p>
+				)
+			) : (
+				<SimpleTable columns={CHARGE_COLUMNS}>
+					{rows.map((charge) => (
+						<ChargeRow key={charge.id} charge={charge} vehicleId={vehicleId} />
+					))}
+				</SimpleTable>
+			)}
+		</DetailSheetSection>
+	);
+}
+
+function ChargeRow({
+	charge,
+	vehicleId,
+}: {
+	charge: VehicleCharge;
+	vehicleId: string;
+}) {
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+
+	const remove = useMutation(
+		trpc.vehicleCharges.delete.mutationOptions({
+			onSuccess: async () => {
+				await cache.vehicle(vehicleId);
+				toast.success("Charge removed.");
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	return (
+		<SimpleTableRow>
+			<TableCell className="truncate py-2.5 pr-3 font-medium">
+				{charge.label}
+			</TableCell>
+			<TableCell className="px-3 py-2.5 text-muted-foreground">
+				{
+					CHARGE_FREQUENCY_OPTIONS.find((o) => o.value === charge.frequency)
+						?.label
+				}
+			</TableCell>
+			<TableCell className="truncate px-3 py-2.5 text-muted-foreground">
+				<LocalDay date={charge.startDate} />
+				{charge.endDate ? (
+					<>
+						{" – "}
+						<LocalDay date={charge.endDate} />
+					</>
+				) : charge.frequency === ChargeFrequency.MONTHLY ? (
+					" – ongoing"
+				) : null}
+			</TableCell>
+			<TableCell className="px-3 py-2.5 text-right tabular-nums">
+				{charge.amountCents === null ? (
+					<EmptyCellValue />
+				) : (
+					formatMoney(charge.amountCents, charge.currency)
+				)}
+			</TableCell>
+			<TableCell className="py-1 pr-1 text-right">
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					disabled={remove.isPending}
+					onClick={() => remove.mutate({ id: charge.id })}
+				>
+					<Icon icon={TrashCan} />
+					<span className="sr-only">Delete this charge</span>
+				</Button>
+			</TableCell>
+		</SimpleTableRow>
+	);
+}
+
+function ChargeForm({
+	vehicleId,
+	onDone,
+}: {
+	vehicleId: string;
+	onDone: () => void;
+}) {
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+	const [label, setLabel] = useState("");
+	const [amount, setAmount] = useState("");
+	const [frequency, setFrequency] = useState<ChargeFrequency>(
+		ChargeFrequency.MONTHLY,
+	);
+	const [startDate, setStartDate] = useState("");
+
+	const labelId = useId();
+	const amountId = useId();
+	const frequencyId = useId();
+	const startDateId = useId();
+
+	const create = useMutation(
+		trpc.vehicleCharges.create.mutationOptions({
+			onSuccess: async () => {
+				await cache.vehicle(vehicleId);
+				toast.success("Charge added.");
+				onDone();
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const amountCents = parseAmountCents(amount);
+	const ready = label.trim() !== "" && amountCents !== null && startDate !== "";
+
+	return (
+		<QuickAddForm
+			submitLabel="Add charge"
+			pending={create.isPending}
+			ready={ready}
+			onCancel={onDone}
+			onSubmit={() => {
+				if (amountCents === null) return;
+				create.mutate({
+					vehicleId,
+					label,
+					amountCents,
+					frequency,
+					startDate,
+				});
+			}}
+		>
+			<Field>
+				<FieldLabel htmlFor={labelId}>Charge</FieldLabel>
+				<Input
+					id={labelId}
+					autoFocus
+					value={label}
+					onChange={(event) => setLabel(event.target.value)}
+					placeholder="Monthly insurance"
+					autoComplete="off"
+				/>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor={amountId}>Amount</FieldLabel>
+				<Input
+					id={amountId}
+					inputMode="decimal"
+					value={amount}
+					onChange={(event) => setAmount(event.target.value)}
+					placeholder="40"
+				/>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor={frequencyId}>Frequency</FieldLabel>
+				<Select
+					value={frequency}
+					onValueChange={(next) => setFrequency(next as ChargeFrequency)}
+				>
+					<SelectTrigger id={frequencyId} className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{CHARGE_FREQUENCY_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor={startDateId}>Start date</FieldLabel>
+				<Input
+					id={startDateId}
+					type="date"
+					value={startDate}
+					onChange={(event) => setStartDate(event.target.value)}
+				/>
+			</Field>
+		</QuickAddForm>
+	);
+}
+
+function ProfitabilitySection({ vehicleId }: { vehicleId: string }) {
+	const trpc = useTRPC();
+	const query = useQuery(
+		trpc.profitability.byVehicle.queryOptions({ vehicleId }),
+	);
+	const data = query.data;
+
+	if (!data) return null;
+
+	const money = (cents: number | string) =>
+		formatMoneyCompact(Number(cents), data.reportingCurrency);
+	const hasTrend = data.trend.some(
+		(point) => point.revenueCents > 0 || point.expensesCents > 0,
+	);
+
+	return (
+		<DetailSheetSection title="Profitability">
+			<DetailSheetStats>
+				<DetailSheetStat label="Revenue">
+					{money(data.lifetime.revenueCents)}
+				</DetailSheetStat>
+				<DetailSheetStat label="Expenses">
+					{money(data.lifetime.expensesCents)}
+				</DetailSheetStat>
+				<DetailSheetStat label="Net">
+					{money(data.lifetime.netCents)}
+				</DetailSheetStat>
+			</DetailSheetStats>
+			{hasTrend ? (
+				<div className="pt-2">
+					<AreaTrend
+						data={data.trend}
+						config={PROFITABILITY_TREND_CONFIG}
+						xKey="month"
+						height={140}
+						variant="gradient"
+						bloom="low"
+						formatValue={money}
+					/>
+				</div>
+			) : null}
+		</DetailSheetSection>
+	);
+}
+
+function parseAmountCents(value: string): number | null {
+	const trimmed = value.trim();
+	if (trimmed === "") return null;
+	const parsed = Number.parseFloat(trimmed);
+	if (!Number.isFinite(parsed) || parsed < 0) return null;
+	return Math.round(parsed * 100);
 }
 
 function VehicleIncidents({ vehicleId }: { vehicleId: string }) {

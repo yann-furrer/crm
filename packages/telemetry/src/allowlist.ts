@@ -52,10 +52,8 @@ export const ALLOWED_PROPERTIES = [
 	"facts_superseded_within_7_days",
 
 	"contacts_bucket",
-	"companies_bucket",
 	"activities_bucket",
 	"contacts_by_source",
-	"companies_by_source",
 	"activities_by_type",
 	"mailbox_sync_configured",
 	"mailbox_sync_status",
@@ -106,7 +104,6 @@ export function permitted(
 export const AGENT_TOOLS = [
 	"agent",
 	"archive_field",
-	"enrich_company",
 	"fetch_contact_photo",
 	"find_contact_socials",
 	"get_contact_work_history",
@@ -116,12 +113,9 @@ export const AGENT_TOOLS = [
 	"list_outstanding_work",
 	"list_rental_contracts",
 	"manage_fields",
-	"read_company_history",
 	"read_crm_history",
 	"read_rental_contract_history",
 	"record_fact",
-	"record_job_change",
-	"research_company",
 	"research_person",
 	"resolve_linkedin_profile",
 	"schedule_recheck",
@@ -157,7 +151,7 @@ export function permittedTool(name: string | null | undefined): string {
 
 export const EVIDENCE_KINDS = [
 	"profile.email-match",
-	"linkedin.employer-and-name",
+	"linkedin.name-match",
 	"crm.thread-reply",
 	"crm.signature-block",
 	"github.account-identity",
@@ -165,7 +159,6 @@ export const EVIDENCE_KINDS = [
 	"web.cited-claim",
 	"handle.name-form",
 	"search.cites-profile",
-	"employer-only",
 	"contradiction",
 ] as const;
 

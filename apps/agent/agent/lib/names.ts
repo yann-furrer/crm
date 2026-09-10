@@ -22,22 +22,6 @@ export function searchTerms(local: string): string[] {
 	return terms;
 }
 
-export function looksLikeSameCompany(
-	employer: string,
-	companyName: string,
-	domain: string,
-): boolean {
-	const a = normalise(employer);
-	const b = normalise(companyName);
-	const c = normalise(domain.replace(/\.[a-z.]+$/, ""));
-
-	if (!a || (!b && !c)) return false;
-	return (
-		(b !== "" && (a === b || a.includes(b) || b.includes(a))) ||
-		(c !== "" && a.includes(c))
-	);
-}
-
 export function nameMatchesLocalPart(
 	person: { firstName: string | null; lastName: string | null },
 	local: string,

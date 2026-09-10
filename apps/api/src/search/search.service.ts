@@ -3,7 +3,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
 
 export type SearchHit = {
-	kind: "company" | "contact" | "vehicle" | "rentalContract";
+	kind: "contact" | "vehicle" | "rentalContract";
 	id: string;
 	label: string;
 	detail: string | null;
@@ -23,25 +23,7 @@ export class SearchService {
 		const term = q.trim();
 		if (term.length < 2) return { hits: [] };
 
-		const [companies, contacts, vehicles, rentalContracts] = await Promise.all([
-			this.db.company.findMany({
-				where: {
-					OR: [
-						{ name: { contains: term, mode: "insensitive" } },
-						{ domain: { contains: term, mode: "insensitive" } },
-					],
-				},
-				take: PER_KIND,
-				orderBy: { name: "asc" },
-				select: {
-					id: true,
-					name: true,
-					domain: true,
-					iconUrl: true,
-					iconDarkUrl: true,
-					iconTone: true,
-				},
-			}),
+		const [contacts, vehicles, rentalContracts] = await Promise.all([
 			this.db.contact.findMany({
 				where: {
 					OR: [
@@ -58,7 +40,6 @@ export class SearchService {
 					lastName: true,
 					email: true,
 					imageUrl: true,
-					company: { select: { name: true } },
 				},
 			}),
 			this.db.vehicle.findMany({
@@ -96,18 +77,6 @@ export class SearchService {
 
 		return {
 			hits: [
-				...companies.map(
-					(company): SearchHit => ({
-						kind: "company",
-						id: company.id,
-						label: company.name,
-						detail: company.domain,
-						iconUrl: company.iconUrl,
-						iconDarkUrl: company.iconDarkUrl,
-						iconTone: company.iconTone,
-						imageUrl: null,
-					}),
-				),
 				...contacts.map(
 					(contact): SearchHit => ({
 						kind: "contact",
@@ -115,7 +84,7 @@ export class SearchService {
 						label:
 							[contact.firstName, contact.lastName].filter(Boolean).join(" ") ||
 							(contact.email ?? "Unnamed"),
-						detail: contact.company?.name ?? contact.email,
+						detail: contact.email,
 						iconUrl: null,
 						iconDarkUrl: null,
 						iconTone: null,

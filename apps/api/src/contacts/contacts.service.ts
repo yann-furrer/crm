@@ -15,49 +15,27 @@ import {
 } from "@nestjs/common";
 import { AgentQueueService } from "../agent/agent-queue.service";
 import { AgentTriggerService } from "../agent/agent-trigger.service";
-import { CompanyDirectoryService } from "../companies/company-directory.service";
 import {
 	ActivityStampService,
 	type StampTargets,
 } from "../crm/activity-stamp.service";
-import { type BulkResult, requireOwner, runBulk } from "../crm/bulk";
+import { type BulkResult, runBulk } from "../crm/bulk";
 import { blankToNull, normalizeEmail, toCents } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
 import { FieldsService } from "../fields/fields.service";
 import {
 	countsByKey,
 	FACET_ALL,
-	FACET_UNASSIGNED,
 	type ListResult,
-	ownerFilter,
 	paginate,
 	resolveOrderBy,
 } from "../trpc/list-input";
 import type {
-	ContactBulkCompanyInput,
-	ContactBulkOwnerInput,
 	ContactCreateInput,
 	ContactListInput,
 	ContactUpdateInput,
 	FactDecisionInput,
 } from "./contacts.contracts";
-
-const OWNER_SELECT = {
-	id: true,
-	name: true,
-	email: true,
-	image: true,
-} as const;
-
-const COMPANY_SELECT = {
-	id: true,
-	name: true,
-	domain: true,
-	iconUrl: true,
-	iconDarkUrl: true,
-	iconTone: true,
-	logoUrl: true,
-} as const;
 
 const RENTAL_CONTRACT_SELECT = {
 	id: true,
@@ -86,8 +64,6 @@ function serializeRentalContract(contract: ContactRentalContractRow) {
 	};
 }
 
-const NO_COMPANY = "none";
-
 const FACT_COLUMNS: Record<string, string | undefined> = {
 	title: "title",
 	linkedinUrl: "linkedinUrl",
@@ -102,21 +78,6 @@ export type ContactRow = {
 	email: string | null;
 	title: string | null;
 	imageUrl: string | null;
-	company: {
-		id: string;
-		name: string;
-		domain: string | null;
-		iconUrl: string | null;
-		iconDarkUrl: string | null;
-		iconTone: string | null;
-		logoUrl: string | null;
-	} | null;
-	owner: {
-		id: string;
-		name: string;
-		email: string;
-		image: string | null;
-	} | null;
 	lastActivityAt: string | null;
 	createdAt: string;
 	fields: Record<string, string | number | boolean | null>;
@@ -129,9 +90,7 @@ const SORTABLE: Record<
 	name: (dir) => [{ lastName: dir }, { firstName: dir }],
 	email: (dir) => [{ email: dir }],
 	title: (dir) => [{ title: dir }, { lastName: "asc" }],
-	company: (dir) => [{ company: { name: dir } }, { lastName: "asc" }],
 	createdAt: (dir) => [{ createdAt: dir }],
-	owner: (dir) => [{ owner: { name: dir } }, { lastName: "asc" }],
 	lastActivity: (dir) => [{ lastActivityAt: { sort: dir, nulls: "last" } }],
 };
 
@@ -141,7 +100,6 @@ export class ContactsService {
 
 	constructor(
 		@InjectDatabase() private readonly db: Db,
-		private readonly companies: CompanyDirectoryService,
 		private readonly agent: AgentTriggerService,
 		private readonly queue: AgentQueueService,
 		private readonly stamp: ActivityStampService,
@@ -181,8 +139,6 @@ export class ContactsService {
 					title: true,
 					imageUrl: true,
 					source: true,
-					company: { select: COMPANY_SELECT },
-					owner: { select: OWNER_SELECT },
 					lastActivityAt: true,
 					createdAt: true,
 				},
@@ -250,10 +206,6 @@ export class ContactsService {
 						observedAt: true,
 					},
 				},
-				company: {
-					select: { ...COMPANY_SELECT, industry: true, primaryContactId: true },
-				},
-				owner: { select: OWNER_SELECT },
 				rentalContracts: {
 					orderBy: { startDate: "desc" },
 					select: RENTAL_CONTRACT_SELECT,
@@ -268,20 +220,10 @@ export class ContactsService {
 			throw new NotFoundException(`No contact with id ${id}.`);
 		}
 
-		const relationship = await this.relationship(
-			id,
-			contact.company?.id ?? null,
-		);
+		const relationship = await this.relationship(id);
 
-		const {
-			rentalContracts,
-			driverOn,
-			createdAt,
-			brief,
-			facts,
-			company,
-			...rest
-		} = contact;
+		const { rentalContracts, driverOn, createdAt, brief, facts, ...rest } =
+			contact;
 
 		const asPrimary = rentalContracts.map((contract) => ({
 			...serializeRentalContract(contract),
@@ -295,7 +237,6 @@ export class ContactsService {
 
 		return {
 			...rest,
-			company,
 			fields: await this.fields.valuesFor("CONTACT", id),
 			queued: await this.queue.isQueued({ contactId: id }),
 			createdAt: createdAt.toISOString(),
@@ -312,7 +253,6 @@ export class ContactsService {
 				observedAt: fact.observedAt.toISOString(),
 			})),
 			relationship,
-			isPrimaryContact: company?.primaryContactId === contact.id,
 			rentalContracts: [...asPrimary, ...asDriver].sort((a, b) =>
 				b.startDate.localeCompare(a.startDate),
 			),
@@ -334,14 +274,6 @@ export class ContactsService {
 			}
 		}
 
-		const companyId =
-			input.companyId ??
-			(email
-				? await this.companies.companyForEmail(email, {
-						ownerId: input.ownerId,
-					})
-				: null);
-
 		const contact = await this.db.$transaction(async (tx) => {
 			await this.allowAgain(tx, email);
 
@@ -352,8 +284,6 @@ export class ContactsService {
 					email,
 					phone: blankToNull(input.phone ?? ""),
 					title: blankToNull(input.title ?? ""),
-					companyId,
-					ownerId: input.ownerId ?? null,
 				},
 				select: { id: true, firstName: true, lastName: true },
 			});
@@ -439,17 +369,6 @@ export class ContactsService {
 		if (input.githubUrl !== undefined) {
 			data.githubUrl = blankToNull(input.githubUrl);
 		}
-		if (input.companyId !== undefined) {
-			data.company = input.companyId
-				? { connect: { id: input.companyId } }
-				: { disconnect: true };
-		}
-		if (input.ownerId !== undefined) {
-			data.owner = input.ownerId
-				? { connect: { id: input.ownerId } }
-				: { disconnect: true };
-		}
-
 		try {
 			return await this.db.$transaction(async (tx) => {
 				if (input.fields) {
@@ -473,64 +392,6 @@ export class ContactsService {
 		}
 	}
 
-	async bulkAssignOwner(input: ContactBulkOwnerInput): Promise<BulkResult> {
-		const ownerId = input.ownerId || null;
-
-		await requireOwner(this.db, ownerId);
-
-		const ids = [...new Set(input.ids)];
-		const { count } = await this.db.contact.updateMany({
-			where: { id: { in: ids } },
-			data: { ownerId },
-		});
-
-		this.logger.log({
-			message: "Contacts reassigned",
-			count,
-			ownerId,
-		});
-
-		return {
-			requested: ids.length,
-			succeeded: count,
-			failed: ids.length - count,
-			message: null,
-		};
-	}
-
-	async bulkSetCompany(input: ContactBulkCompanyInput): Promise<BulkResult> {
-		const companyId = input.companyId || null;
-
-		if (companyId) {
-			const company = await this.db.company.findUnique({
-				where: { id: companyId },
-				select: { id: true },
-			});
-			if (!company) {
-				throw new NotFoundException(`No company with id ${companyId}.`);
-			}
-		}
-
-		const ids = [...new Set(input.ids)];
-		const { count } = await this.db.contact.updateMany({
-			where: { id: { in: ids } },
-			data: { companyId },
-		});
-
-		this.logger.log({
-			message: "Contacts moved",
-			count,
-			companyId,
-		});
-
-		return {
-			requested: ids.length,
-			succeeded: count,
-			failed: ids.length - count,
-			message: null,
-		};
-	}
-
 	async bulkEnrich(ids: string[]): Promise<BulkResult> {
 		return runBulk(ids, (id) => this.enrich(id));
 	}
@@ -549,48 +410,34 @@ export class ContactsService {
 		});
 	}
 
-	private async relationship(contactId: string, companyId: string | null) {
+	private async relationship(contactId: string) {
 		const now = new Date();
 
-		const [threads, lastReply, meetings, nextMeeting, colleagues] =
-			await Promise.all([
-				this.db.emailThread.aggregate({
-					where: { contactId },
-					_sum: { messageCount: true },
-					_count: { _all: true },
-				}),
-				this.db.emailMessage.findFirst({
-					where: { thread: { contactId }, direction: "INBOUND" },
-					orderBy: { sentAt: "desc" },
-					select: { sentAt: true },
-				}),
-				this.db.calendarEvent.count({
-					where: {
-						OR: [{ contactId }, { attendees: { some: { contactId } } }],
-					},
-				}),
-				this.db.calendarEvent.findFirst({
-					where: {
-						startsAt: { gt: now },
-						OR: [{ contactId }, { attendees: { some: { contactId } } }],
-					},
-					orderBy: { startsAt: "asc" },
-					select: { title: true, startsAt: true },
-				}),
-				companyId
-					? this.db.contact.findMany({
-							where: { companyId, id: { not: contactId } },
-							orderBy: { lastActivityAt: { sort: "desc", nulls: "last" } },
-							take: 4,
-							select: {
-								id: true,
-								firstName: true,
-								lastName: true,
-								title: true,
-							},
-						})
-					: Promise.resolve([]),
-			]);
+		const [threads, lastReply, meetings, nextMeeting] = await Promise.all([
+			this.db.emailThread.aggregate({
+				where: { contactId },
+				_sum: { messageCount: true },
+				_count: { _all: true },
+			}),
+			this.db.emailMessage.findFirst({
+				where: { thread: { contactId }, direction: "INBOUND" },
+				orderBy: { sentAt: "desc" },
+				select: { sentAt: true },
+			}),
+			this.db.calendarEvent.count({
+				where: {
+					OR: [{ contactId }, { attendees: { some: { contactId } } }],
+				},
+			}),
+			this.db.calendarEvent.findFirst({
+				where: {
+					startsAt: { gt: now },
+					OR: [{ contactId }, { attendees: { some: { contactId } } }],
+				},
+				orderBy: { startsAt: "asc" },
+				select: { title: true, startsAt: true },
+			}),
+		]);
 
 		return {
 			emails: threads._sum.messageCount ?? 0,
@@ -603,13 +450,6 @@ export class ContactsService {
 						startsAt: nextMeeting.startsAt.toISOString(),
 					}
 				: null,
-			colleagues: colleagues.map((colleague) => ({
-				id: colleague.id,
-				name: [colleague.firstName, colleague.lastName]
-					.filter(Boolean)
-					.join(" "),
-				title: colleague.title,
-			})),
 		};
 	}
 
@@ -726,7 +566,6 @@ export class ContactsService {
 				{ firstName: { contains: term, mode: "insensitive" } },
 				{ lastName: { contains: term, mode: "insensitive" } },
 				{ email: { contains: term, mode: "insensitive" } },
-				{ company: { name: { contains: term, mode: "insensitive" } } },
 			],
 		};
 	}
@@ -734,12 +573,7 @@ export class ContactsService {
 	private buildWhere(input: ContactListInput): Prisma.ContactWhereInput {
 		const where: Prisma.ContactWhereInput = {
 			...this.searchFilter(input.q),
-			...ownerFilter(input.owner),
 		};
-
-		if (input.company !== FACET_ALL) {
-			where.companyId = input.company === NO_COMPANY ? null : input.company;
-		}
 
 		if (input.source !== FACET_ALL) {
 			where.source = input.source as RecordSource;
@@ -751,17 +585,7 @@ export class ContactsService {
 	private async facetCounts(input: ContactListInput) {
 		const where = this.searchFilter(input.q);
 
-		const [owners, companies, sources] = await Promise.all([
-			this.db.contact.groupBy({
-				by: ["ownerId"],
-				where,
-				_count: { _all: true },
-			}),
-			this.db.contact.groupBy({
-				by: ["companyId"],
-				where,
-				_count: { _all: true },
-			}),
+		const [sources] = await Promise.all([
 			this.db.contact.groupBy({
 				by: ["source"],
 				where,
@@ -769,11 +593,7 @@ export class ContactsService {
 			}),
 		]);
 
-		return {
-			owner: countsByKey(owners, "ownerId", FACET_UNASSIGNED),
-			company: countsByKey(companies, "companyId", NO_COMPANY),
-			source: countsByKey(sources, "source"),
-		};
+		return { source: countsByKey(sources, "source") };
 	}
 
 	private translate(error: unknown, id: string): unknown {

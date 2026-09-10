@@ -24,7 +24,6 @@ const TIMELINE_FILTERS = [
 export type TimelineFilter = (typeof TIMELINE_FILTERS)[number];
 
 export const timelineInput = z.object({
-	companyId: z.string().optional(),
 	contactId: z.string().optional(),
 	vehicleId: z.string().optional(),
 	rentalContractId: z.string().optional(),
@@ -36,7 +35,6 @@ export const timelineInput = z.object({
 export type TimelineInput = z.infer<typeof timelineInput>;
 
 export const timelineCountsInput = z.object({
-	companyId: z.string().optional(),
 	contactId: z.string().optional(),
 	vehicleId: z.string().optional(),
 	rentalContractId: z.string().optional(),
@@ -49,20 +47,15 @@ export const activityCreateInput = z
 		body: z.string().trim().optional(),
 		occurredAt: z.string().optional(),
 		dueAt: z.string().nullable().optional(),
-		companyId: z.string().optional(),
 		contactId: z.string().optional(),
 		vehicleId: z.string().optional(),
 		rentalContractId: z.string().optional(),
 	})
 	.refine(
-		(input) =>
-			input.companyId ||
-			input.contactId ||
-			input.vehicleId ||
-			input.rentalContractId,
+		(input) => input.contactId || input.vehicleId || input.rentalContractId,
 		{
 			message:
-				"An activity has to be about a company, a contact, a vehicle or a rental contract.",
+				"An activity has to be about a contact, a vehicle or a rental contract.",
 		},
 	)
 	.refine(

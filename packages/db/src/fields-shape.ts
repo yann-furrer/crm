@@ -1,5 +1,4 @@
 export const FIELD_ENTITIES = [
-	"COMPANY",
 	"CONTACT",
 	"VEHICLE",
 	"RENTAL_CONTRACT",
@@ -69,7 +68,6 @@ export function usesOptions(type: FieldTypeName): boolean {
 }
 
 export const RECORD_ID_COLUMNS = {
-	COMPANY: "companyId",
 	CONTACT: "contactId",
 	VEHICLE: "vehicleId",
 	RENTAL_CONTRACT: "rentalContractId",

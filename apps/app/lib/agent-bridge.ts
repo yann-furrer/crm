@@ -17,7 +17,6 @@ export async function mintBridgeToken(
 	},
 	record: {
 		contactId?: string;
-		companyId?: string;
 		vehicleId?: string;
 		rentalContractId?: string;
 	} = {},
@@ -35,7 +34,6 @@ export async function mintBridgeToken(
 		email: user.email,
 		name: user.name,
 		...(record.contactId ? { contactId: record.contactId } : {}),
-		...(record.companyId ? { companyId: record.companyId } : {}),
 		...(record.vehicleId ? { vehicleId: record.vehicleId } : {}),
 		...(record.rentalContractId
 			? { rentalContractId: record.rentalContractId }

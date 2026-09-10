@@ -74,19 +74,16 @@ function CreateRentalContractForm() {
 
 	const users = useQuery(trpc.users.list.queryOptions());
 	const me = useQuery(trpc.users.me.queryOptions());
-	const vehicles = useQuery(
-		trpc.vehicles.list.queryOptions({
-			q: "",
-			sort: "",
-			dir: "asc",
-			page: 1,
-			pageSize: 100,
-			owner: "all",
-			status: "AVAILABLE",
-			type: "all",
-		}),
-	);
 	const contacts = useQuery(trpc.contacts.options.queryOptions({ q: "" }));
+	const dateRangeValid =
+		startDate !== "" && endDate !== "" && endDate > startDate;
+	const availability = useQuery({
+		...trpc.vehicles.availability.queryOptions({ startDate, endDate }),
+		enabled: dateRangeValid,
+	});
+	const availableVehicles = dateRangeValid
+		? (availability.data?.rows ?? [])
+		: [];
 
 	const resolvedOwner = ownerId || me.data?.id || UNSET;
 
@@ -124,7 +121,7 @@ function CreateRentalContractForm() {
 			</SheetTrigger>
 			<SheetContent side="right">
 				<SheetHeader>
-					<SheetTitle>New rental contract</SheetTitle>
+					<SheetTitle>Nouveau contrat de location</SheetTitle>
 					<SheetDescription>
 						Book a vehicle for a renter over a date range.
 					</SheetDescription>
@@ -158,23 +155,44 @@ function CreateRentalContractForm() {
 				>
 					<FieldGroup>
 						<Field>
-							<FieldLabel htmlFor="create-contract-vehicle">Vehicle</FieldLabel>
-							<Select value={vehicleId} onValueChange={setVehicleId}>
+							<FieldLabel htmlFor="create-contract-vehicle">
+								Véhicule
+							</FieldLabel>
+							<Select
+								value={vehicleId}
+								onValueChange={setVehicleId}
+								disabled={!dateRangeValid || availability.isPending}
+							>
 								<SelectTrigger id="create-contract-vehicle">
-									<SelectValue placeholder="Choose an available vehicle" />
+									<SelectValue
+										placeholder={
+											!dateRangeValid
+												? "Choose dates first"
+												: availability.isPending
+													? "Checking availability…"
+													: "Choose an available vehicle"
+										}
+									/>
 								</SelectTrigger>
 								<SelectContent>
-									{(vehicles.data?.rows ?? []).map((vehicle) => (
+									{availableVehicles.map((vehicle) => (
 										<SelectItem key={vehicle.id} value={vehicle.id}>
 											{vehicle.make} {vehicle.model} · {vehicle.plateNumber}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
+							{dateRangeValid && !availability.isPending ? (
+								<p className="text-muted-foreground text-xs">
+									{availableVehicles.length === 0
+										? "No vehicle is available for these dates."
+										: `${availableVehicles.length} vehicle${availableVehicles.length === 1 ? "" : "s"} available for this period.`}
+								</p>
+							) : null}
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor="create-contract-contact">Renter</FieldLabel>
+							<FieldLabel htmlFor="create-contract-contact">Client</FieldLabel>
 							<Select value={contactId} onValueChange={setContactId}>
 								<SelectTrigger id="create-contract-contact">
 									<SelectValue placeholder="Choose a renter" />
@@ -190,7 +208,7 @@ function CreateRentalContractForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor="create-contract-owner">Agent</FieldLabel>
+							<FieldLabel htmlFor="create-contract-owner">Vendeur</FieldLabel>
 							<Select value={resolvedOwner} onValueChange={setOwnerId}>
 								<SelectTrigger id="create-contract-owner">
 									<SelectValue placeholder="Choose an agent" />
@@ -212,23 +230,31 @@ function CreateRentalContractForm() {
 							<DatePicker
 								id="create-contract-start"
 								value={startDate}
-								onChange={setStartDate}
+								onChange={(value) => {
+									setStartDate(value);
+									setVehicleId(UNSET);
+								}}
 								placeholder="Pickup date"
 							/>
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor="create-contract-end">End date</FieldLabel>
+							<FieldLabel htmlFor="create-contract-end">
+								Date de retour
+							</FieldLabel>
 							<DatePicker
 								id="create-contract-end"
 								value={endDate}
-								onChange={setEndDate}
+								onChange={(value) => {
+									setEndDate(value);
+									setVehicleId(UNSET);
+								}}
 								placeholder="Return date"
 							/>
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={pricePerDayId}>Price per day</FieldLabel>
+							<FieldLabel htmlFor={pricePerDayId}>Prix par jour</FieldLabel>
 							<Input
 								id={pricePerDayId}
 								value={pricePerDay}
@@ -240,7 +266,7 @@ function CreateRentalContractForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={depositId}>Deposit</FieldLabel>
+							<FieldLabel htmlFor={depositId}>Caution</FieldLabel>
 							<Input
 								id={depositId}
 								value={depositAmount}

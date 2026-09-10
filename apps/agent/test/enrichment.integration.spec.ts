@@ -2,10 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { db, EnrichmentStatus } from "@crm/db";
 import { markRunning, settle } from "../agent/lib/enrichment";
 
-const domain = "lifecycle.example.test";
-
 async function clear() {
-	await db.company.deleteMany({ where: { domain } });
 	await db.contact.deleteMany({
 		where: { email: { startsWith: "lifecycle-" } },
 	});
@@ -13,13 +10,6 @@ async function clear() {
 
 beforeEach(clear);
 afterEach(clear);
-
-async function company() {
-	return db.company.create({
-		data: { name: "Lifecycle", domain },
-		select: { id: true },
-	});
-}
 
 async function contact() {
 	return db.contact.create({
@@ -31,12 +21,11 @@ async function contact() {
 	});
 }
 
-function subjectOf(ids: { contactId?: string; companyId?: string }) {
+function subjectOf(ids: { contactId?: string }) {
 	return {
 		id: "task",
 		kind: "test",
 		contactId: ids.contactId ?? null,
-		companyId: ids.companyId ?? null,
 	};
 }
 
@@ -68,42 +57,24 @@ describe("the record follows the task", () => {
 		expect(done?.enrichedAt).not.toBeNull();
 	});
 
-	it("does the same for a company", async () => {
-		const org = await company();
-		const subject = subjectOf({ companyId: org.id });
-
-		await markRunning(subject);
-		await settle(subject, EnrichmentStatus.COMPLETE);
-
-		const row = await db.company.findUnique({
-			where: { id: org.id },
-			select: { enrichmentStatus: true },
-		});
-		expect(row?.enrichmentStatus).toBe("COMPLETE");
-	});
-
 	it("lets a tool's more specific answer win over the queue's", async () => {
-		const org = await company();
-		const subject = subjectOf({ companyId: org.id });
+		const person = await contact();
+		const subject = subjectOf({ contactId: person.id });
 
 		await markRunning(subject);
 
-		await db.company.update({
-			where: { id: org.id },
+		await db.contact.update({
+			where: { id: person.id },
 			data: {
 				enrichmentStatus: EnrichmentStatus.SKIPPED,
-				enrichmentError: "No domain to look up.",
+				enrichmentError: "No email to look up.",
 			},
 		});
 
 		await settle(subject, EnrichmentStatus.COMPLETE);
 
-		const row = await db.company.findUnique({
-			where: { id: org.id },
-			select: { enrichmentStatus: true, enrichmentError: true },
-		});
+		const row = await statusOfContact(person.id);
 		expect(row?.enrichmentStatus).toBe("SKIPPED");
-		expect(row?.enrichmentError).toBe("No domain to look up.");
 	});
 
 	it("puts a failed record back to work on a retry", async () => {

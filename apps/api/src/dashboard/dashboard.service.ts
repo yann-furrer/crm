@@ -1,9 +1,16 @@
-import { ActivityType, type Db, RentalContractStatus } from "@crm/db";
+import {
+	ActivityType,
+	type Db,
+	PaymentStatus,
+	RentalContractStatus,
+	VehicleStatus,
+} from "@crm/db";
 import { Injectable } from "@nestjs/common";
 import { toCents } from "../crm/values";
 import { ConversionService } from "../currency/conversion.service";
 import { InjectDatabase } from "../database/database.constants";
 import type { DashboardSummaryInput } from "./dashboard.contracts";
+import { MONTH_LABEL, monthKey, monthStart } from "./month-bucket";
 
 const OWNER_SELECT = {
 	id: true,
@@ -24,16 +31,6 @@ const RATE_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const MONTH_LABEL = new Intl.DateTimeFormat("en-US", { month: "short" });
-
-function monthStart(from: Date, offset: number): Date {
-	return new Date(from.getFullYear(), from.getMonth() + offset, 1);
-}
-
-function monthKey(date: Date): number {
-	return date.getFullYear() * 12 + date.getMonth();
-}
-
 @Injectable()
 export class DashboardService {
 	constructor(
@@ -49,6 +46,16 @@ export class DashboardService {
 		const startOfMonth = monthStart(now, 0);
 		const startOfNextMonth = monthStart(now, 1);
 		const startOfPrevMonth = monthStart(now, -1);
+		const startOfToday = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate(),
+		);
+		const startOfTomorrow = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate() + 1,
+		);
 		const trendStart = monthStart(now, -(TREND_MONTHS - 1));
 		const rateStart = new Date(now.getTime() - RATE_WINDOW_DAYS * DAY_MS);
 
@@ -59,6 +66,12 @@ export class DashboardService {
 			openByStatus,
 			openValueByStatus,
 			recentContracts,
+			vehiclesRentedToday,
+			rentalsInProgress,
+			returnsDueToday,
+			valueInProgressToday,
+			paymentsToday,
+			availableVehicles,
 			dueBackThisMonth,
 			topActiveContracts,
 			overdueTasks,
@@ -94,6 +107,67 @@ export class DashboardService {
 					actualReturnAt: true,
 					cancelledAt: true,
 				},
+			}),
+			this.db.rentalContract.groupBy({
+				by: ["vehicleId"],
+				where: {
+					...owned,
+					status: {
+						in: [RentalContractStatus.RESERVED, RentalContractStatus.ACTIVE],
+					},
+					startDate: { lt: startOfTomorrow },
+					endDate: { gte: startOfToday },
+				},
+			}),
+			this.db.rentalContract.count({
+				where: {
+					...owned,
+					status: RentalContractStatus.ACTIVE,
+				},
+			}),
+			this.db.rentalContract.count({
+				where: {
+					...owned,
+					status: {
+						in: [RentalContractStatus.RESERVED, RentalContractStatus.ACTIVE],
+					},
+					endDate: { gte: startOfToday, lt: startOfTomorrow },
+				},
+			}),
+			this.db.rentalContract.aggregate({
+				where: {
+					AND: [
+						{
+							...owned,
+							status: {
+								in: [
+									RentalContractStatus.RESERVED,
+									RentalContractStatus.ACTIVE,
+								],
+							},
+							startDate: { lt: startOfTomorrow },
+							endDate: { gte: startOfToday },
+						},
+						counted,
+					],
+				},
+				_sum: { baseAmount: true },
+			}),
+			this.db.payment.aggregate({
+				where: {
+					AND: [
+						{
+							status: PaymentStatus.COMPLETED,
+							paidAt: { gte: startOfToday, lt: startOfTomorrow },
+							...(mine ? { rentalContract: { ownerId: actingUserId } } : {}),
+						},
+						counted,
+					],
+				},
+				_sum: { baseAmount: true },
+			}),
+			this.db.vehicle.count({
+				where: { ...owned, status: VehicleStatus.AVAILABLE },
 			}),
 			this.db.rentalContract.aggregate({
 				where: {
@@ -155,7 +229,6 @@ export class DashboardService {
 					id: true,
 					subject: true,
 					dueAt: true,
-					company: { select: { id: true, name: true } },
 					rentalContract: {
 						select: {
 							id: true,
@@ -176,7 +249,6 @@ export class DashboardService {
 					createdAt: true,
 					meta: true,
 					createdBy: { select: OWNER_SELECT },
-					company: { select: { id: true, name: true } },
 					rentalContract: {
 						select: {
 							id: true,
@@ -262,6 +334,15 @@ export class DashboardService {
 				statuses,
 				totalCents: statuses.reduce((total, s) => total + s.valueCents, 0),
 				totalContracts: statuses.reduce((total, s) => total + s.count, 0),
+			},
+			today: {
+				vehiclesRented: vehiclesRentedToday.length,
+				rentalsInProgress,
+				returnsDue: returnsDueToday,
+				valueInProgressCents:
+					toCents(valueInProgressToday._sum.baseAmount) ?? 0,
+				paymentsCents: toCents(paymentsToday._sum.baseAmount) ?? 0,
+				availableVehicles,
 			},
 			completedThisMonth,
 			completedPrevMonth,

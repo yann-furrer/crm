@@ -4,7 +4,6 @@ import { useState } from "react";
 import { FieldsSheetHost } from "@/components/crm/fields/fields-sheet";
 import { CancelReasonDialog } from "@/components/crm/status-change";
 import { DetailSheet } from "@/components/detail-sheet";
-import { CompanySheet } from "./company-sheet";
 import { ContactSheet } from "./contact-sheet";
 import { type RecordRef, recordKey, useRecordStack } from "./record-stack";
 import { RentalContractSheet } from "./rental-contract-sheet";
@@ -26,10 +25,6 @@ export function RecordSheetHost() {
 					if (!next) closeAll();
 				}}
 			>
-				{shown?.kind === "company" ? (
-					<CompanySheet key={recordKey(shown)} companyId={shown.id} />
-				) : null}
-
 				{shown?.kind === "contact" ? (
 					<ContactSheet key={recordKey(shown)} contactId={shown.id} />
 				) : null}

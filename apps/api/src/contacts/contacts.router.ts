@@ -11,9 +11,7 @@ import type { z } from "zod";
 import type { AuthedTrpcContext } from "../trpc/context.types";
 import { AuthMiddleware } from "../trpc/middlewares/auth.middleware";
 import {
-	contactBulkCompanyInput,
 	contactBulkInput,
-	contactBulkOwnerInput,
 	contactCreateInput,
 	contactIdInput,
 	contactListInput,
@@ -63,18 +61,6 @@ export class ContactsRouter {
 	@Mutation({ input: contactIdInput })
 	async enrich(@Input("id") id: string) {
 		return this.contacts.enrich(id);
-	}
-
-	@Mutation({ input: contactBulkOwnerInput })
-	async bulkAssignOwner(@Input() input: z.infer<typeof contactBulkOwnerInput>) {
-		return this.contacts.bulkAssignOwner(input);
-	}
-
-	@Mutation({ input: contactBulkCompanyInput })
-	async bulkSetCompany(
-		@Input() input: z.infer<typeof contactBulkCompanyInput>,
-	) {
-		return this.contacts.bulkSetCompany(input);
 	}
 
 	@Mutation({ input: contactBulkInput })

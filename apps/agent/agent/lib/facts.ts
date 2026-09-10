@@ -9,7 +9,6 @@ const FIELDS = {
 	linkedinUrl: { column: "linkedinUrl" },
 	twitterUrl: { column: "twitterUrl" },
 	githubUrl: { column: "githubUrl" },
-	employer: { column: null },
 	seniority: { column: null },
 	function: { column: null },
 	location: { column: null },
@@ -187,32 +186,6 @@ export async function recordFact(
 		reason: applies
 			? undefined
 			: "Kept as a proposal for a rep to accept or dismiss. This is a normal outcome, not a failure — do not try to raise the score.",
-	};
-}
-
-export async function lastEmployerChange(contactId: string) {
-	const [previous, current] = await Promise.all([
-		db.contactFact.findFirst({
-			where: { contactId, field: "employer", status: FactStatus.SUPERSEDED },
-			orderBy: { supersededAt: "desc" },
-			select: { value: true, supersededAt: true },
-		}),
-		db.contactFact.findFirst({
-			where: { contactId, field: "employer", status: FactStatus.APPLIED },
-			orderBy: { observedAt: "desc" },
-			select: { value: true, observedAt: true, sourceUrl: true },
-		}),
-	]);
-
-	if (!previous || !current || sameValue(previous.value, current.value)) {
-		return null;
-	}
-
-	return {
-		from: previous.value,
-		to: current.value,
-		observedAt: current.observedAt,
-		sourceUrl: current.sourceUrl,
 	};
 }
 

@@ -27,7 +27,6 @@ import {
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
 import { FunnelService } from "./funnel.service";
-import { SEED_OWNER_PREFIX } from "./seed";
 
 const WINDOW_HOURS = 24;
 
@@ -450,10 +449,8 @@ export class RollupService {
 	private async crm(since: Date): Promise<Properties> {
 		const [
 			contacts,
-			companies,
 			activities,
 			contactSources,
-			companySources,
 			types,
 			syncs,
 			threads,
@@ -465,29 +462,20 @@ export class RollupService {
 			nonSeedContacts,
 		] = await Promise.all([
 			this.db.contact.count(),
-			this.db.company.count(),
 			this.db.activity.count(),
 			this.db.contact.groupBy({ by: ["source"], _count: { _all: true } }),
-			this.db.company.groupBy({ by: ["source"], _count: { _all: true } }),
 			this.db.activity.groupBy({ by: ["type"], _count: { _all: true } }),
 			this.db.mailboxSync.groupBy({ by: ["status"], _count: { _all: true } }),
 			this.db.emailThread.count({ where: { createdAt: { gte: since } } }),
 			this.db.emailMessage.count({ where: { createdAt: { gte: since } } }),
-			this.db.company.groupBy({
+			this.db.contact.groupBy({
 				by: ["enrichmentStatus"],
 				_count: { _all: true },
 			}),
 			this.db.suppressedDomain.count(),
 			this.db.suppressedContact.count(),
 			this.db.workspaceProfile.count(),
-			this.db.contact.count({
-				where: {
-					OR: [
-						{ ownerId: null },
-						{ ownerId: { not: { startsWith: SEED_OWNER_PREFIX } } },
-					],
-				},
-			}),
+			this.db.contact.count(),
 		]);
 
 		const configured = syncs.reduce((sum, row) => sum + row._count._all, 0);
@@ -496,18 +484,10 @@ export class RollupService {
 			seed_only: contacts > 0 && nonSeedContacts === 0,
 
 			contacts_bucket: bucket(contacts),
-			companies_bucket: bucket(companies),
 			activities_bucket: bucket(activities),
 
 			contacts_by_source: countsOf(
 				contactSources.map((row) => ({
-					key: row.source,
-					count: row._count._all,
-				})),
-				Object.values(RecordSource),
-			),
-			companies_by_source: countsOf(
-				companySources.map((row) => ({
 					key: row.source,
 					count: row._count._all,
 				})),

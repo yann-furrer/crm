@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db } from "@crm/db";
 import { AgentQueueService } from "../src/agent/agent-queue.service";
 import type { AgentTriggerService } from "../src/agent/agent-trigger.service";
-import { CompanyDirectoryService } from "../src/companies/company-directory.service";
 import { ContactsService } from "../src/contacts/contacts.service";
 import { ActivityStampService } from "../src/crm/activity-stamp.service";
 import { ConversionService } from "../src/currency/conversion.service";
@@ -19,24 +18,14 @@ const platePrefix = `BULK-${suffix}`;
 
 const agent = {
 	contactCreated: async () => undefined,
-	companyCreated: async () => undefined,
-	companyRequested: async () => undefined,
 } as unknown as AgentTriggerService;
 
 const stamp = new ActivityStampService(db);
 const queue = new AgentQueueService(db);
 const conversion = new ConversionService(db);
-const directory = new CompanyDirectoryService(db, agent);
 
 const fields = new FieldsService(db, agent);
-const contacts = new ContactsService(
-	db,
-	directory,
-	agent,
-	queue,
-	stamp,
-	fields,
-);
+const contacts = new ContactsService(db, agent, queue, stamp, fields);
 const vehicles = new VehiclesService(db, stamp, conversion, fields);
 const rentalContracts = new RentalContractsService(
 	db,
@@ -102,68 +91,7 @@ async function makeContract(
 	return contract.id;
 }
 
-describe("assigning an owner to a selection", () => {
-	it("moves every record it was given", async () => {
-		const first = await contacts.create({
-			firstName: "Ada",
-			email: `ada@${domain}`,
-			ownerId,
-		});
-		const second = await contacts.create({
-			firstName: "Grace",
-			email: `grace@${domain}`,
-			ownerId,
-		});
-
-		expect(
-			await contacts.bulkAssignOwner({
-				ids: [first.id, second.id],
-				ownerId: secondOwnerId,
-			}),
-		).toEqual({ requested: 2, succeeded: 2, failed: 0, message: null });
-
-		expect(
-			await db.contact.count({
-				where: { id: { in: [first.id, second.id] }, ownerId: secondOwnerId },
-			}),
-		).toBe(2);
-	});
-
-	it("counts the same record once, however many times it was sent", async () => {
-		const only = await contacts.create({
-			firstName: "Edsger",
-			email: `edsger@${domain}`,
-		});
-
-		expect(
-			await contacts.bulkAssignOwner({
-				ids: [only.id, only.id],
-				ownerId,
-			}),
-		).toEqual({ requested: 1, succeeded: 1, failed: 0, message: null });
-	});
-
-	it("refuses an owner who does not work here", async () => {
-		const contact = await contacts.create({
-			firstName: "Alan",
-			email: `alan@${domain}`,
-		});
-
-		await expect(
-			contacts.bulkAssignOwner({
-				ids: [contact.id],
-				ownerId: `nobody-${suffix}`,
-			}),
-		).rejects.toThrow(/does not work here/);
-
-		expect(
-			await db.contact.findUnique({
-				where: { id: contact.id },
-				select: { ownerId: true },
-			}),
-		).toEqual({ ownerId: null });
-	});
-
+describe("assigning an owner to vehicles", () => {
 	it("moves a selection of vehicles just the same way", async () => {
 		const first = await makeVehicle("owner-1");
 		const second = await makeVehicle("owner-2");

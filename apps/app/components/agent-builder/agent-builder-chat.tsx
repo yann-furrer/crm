@@ -3,7 +3,6 @@
 import Add from "@carbon/icons-react/es/Add";
 import Application from "@carbon/icons-react/es/Application";
 import ArrowRight from "@carbon/icons-react/es/ArrowRight";
-import Building from "@carbon/icons-react/es/Building";
 import CarFront from "@carbon/icons-react/es/CarFront";
 import Checkmark from "@carbon/icons-react/es/Checkmark";
 import Copy from "@carbon/icons-react/es/Copy";
@@ -1366,7 +1365,6 @@ function ChatUnavailable() {
 
 const RESOURCE_ICONS = {
 	integration: Application,
-	company: Building,
 	contact: User,
 	vehicle: CarFront,
 	rentalContract: DocumentSigned,

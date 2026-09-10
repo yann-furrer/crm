@@ -320,13 +320,11 @@ export class FieldsService {
 			this.db.fieldValue.count({
 				where: { fieldId: id, [column]: { not: null } },
 			}),
-			definition.entity === "COMPANY"
-				? this.db.company.count()
-				: definition.entity === "CONTACT"
-					? this.db.contact.count()
-					: definition.entity === "VEHICLE"
-						? this.db.vehicle.count()
-						: this.db.rentalContract.count(),
+			definition.entity === "CONTACT"
+				? this.db.contact.count()
+				: definition.entity === "VEHICLE"
+					? this.db.vehicle.count()
+					: this.db.rentalContract.count(),
 		]);
 
 		return { filled, total };

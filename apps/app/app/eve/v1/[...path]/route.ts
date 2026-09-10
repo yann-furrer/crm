@@ -44,7 +44,6 @@ async function handler(request: Request): Promise<Response> {
 	}
 
 	const contactId = request.headers.get("x-crm-contact");
-	const companyId = request.headers.get("x-crm-company");
 	const vehicleId = request.headers.get("x-crm-vehicle");
 	const rentalContractId = request.headers.get("x-crm-rental-contract");
 	const builderConversationId = request.headers.get(
@@ -52,7 +51,6 @@ async function handler(request: Request): Promise<Response> {
 	);
 	const requestedSession = sessionFromPath(url.pathname);
 	headers.delete("x-crm-contact");
-	headers.delete("x-crm-company");
 	headers.delete("x-crm-vehicle");
 	headers.delete("x-crm-rental-contract");
 	headers.delete("x-crm-builder-conversation");
@@ -100,7 +98,6 @@ async function handler(request: Request): Promise<Response> {
 			},
 			{
 				contactId: cuid(contactId),
-				companyId: cuid(companyId),
 				vehicleId: cuid(vehicleId),
 				rentalContractId: cuid(rentalContractId),
 			},

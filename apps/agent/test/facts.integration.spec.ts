@@ -112,31 +112,31 @@ describe("recordFact", () => {
 		expect(result.reason).toContain("dismissed");
 	});
 
-	it("supersedes rather than replaces, which is how a job change is noticed", async () => {
+	it("supersedes rather than replaces, when a later fact overrides an earlier one", async () => {
 		await recordFact({
 			contactId,
-			field: "employer",
-			value: "Fleetio",
-			evidence: [seen("linkedin.employer-and-name")],
+			field: "seniority",
+			value: "Manager",
+			evidence: [seen("profile.email-match")],
 			method: "linkedin.profile",
 		});
 
 		await recordFact({
 			contactId,
-			field: "employer",
-			value: "Comp AI",
-			evidence: [seen("linkedin.employer-and-name")],
+			field: "seniority",
+			value: "Director",
+			evidence: [seen("profile.email-match")],
 			method: "linkedin.profile",
 		});
 
 		const facts = await db.contactFact.findMany({
-			where: { contactId, field: "employer" },
+			where: { contactId, field: "seniority" },
 			select: { value: true, status: true },
 		});
 
 		expect(facts).toHaveLength(2);
-		expect(facts.find((f) => f.value === "Fleetio")?.status).toBe("SUPERSEDED");
-		expect(facts.find((f) => f.value === "Comp AI")?.status).toBe("APPLIED");
+		expect(facts.find((f) => f.value === "Manager")?.status).toBe("SUPERSEDED");
+		expect(facts.find((f) => f.value === "Director")?.status).toBe("APPLIED");
 	});
 
 	it("stores the evidence, so the score can be explained later", async () => {
@@ -156,7 +156,7 @@ describe("writeBrief", () => {
 			contactId,
 			narrative: "Subject is Head of Security at Example.",
 			sections: { currentRole: "Head of Security · Example" },
-			evidence: [seen("linkedin.employer-and-name")],
+			evidence: [seen("linkedin.name-match")],
 			sourceUrl: "https://www.linkedin.com/in/subject",
 		});
 
@@ -164,7 +164,7 @@ describe("writeBrief", () => {
 			contactId,
 			narrative: "Subject is now VP Security at Example.",
 			sections: { currentRole: "VP Security · Example" },
-			evidence: [seen("linkedin.employer-and-name")],
+			evidence: [seen("linkedin.name-match")],
 		});
 
 		const brief = await db.contactBrief.findUnique({ where: { contactId } });
@@ -176,7 +176,7 @@ describe("writeBrief", () => {
 			contactId,
 			narrative: "Subject seems like a great person to know.",
 			sections: {},
-			evidence: [seen("employer-only")],
+			evidence: [],
 		});
 
 		expect(result.written).toBe(false);

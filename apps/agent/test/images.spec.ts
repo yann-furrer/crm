@@ -84,8 +84,6 @@ describe("the portrait source chain", () => {
 		name: "Paula Marchetti",
 		linkedinUrl: null,
 		githubUrl: null,
-		companyName: null,
-		companyDomain: null,
 	};
 	const free = () => ({ ok: true });
 

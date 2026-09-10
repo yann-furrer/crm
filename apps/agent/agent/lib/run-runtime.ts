@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { ActivityType, db, type Prisma } from "@crm/db";
 import { lockIdempotencyKey } from "@crm/db/idempotency";
-import { readCompanyHistory, readRentalContractHistory } from "./accounts";
+import { readRentalContractHistory } from "./accounts";
 import { readCrmHistory } from "./crm";
 import { searchCrm } from "./lookup";
 import { lockAgentRun, runTerminalEventId } from "./run-state";
@@ -9,7 +9,7 @@ import { lockAgentRun, runTerminalEventId } from "./run-state";
 const ACTION_LEASE_MS = 5 * 60_000;
 
 type RunResource = {
-	kind: "integration" | "company" | "contact" | "vehicle" | "rentalContract";
+	kind: "integration" | "contact" | "vehicle" | "rentalContract";
 	id: string;
 	label: string;
 };
@@ -73,7 +73,7 @@ export async function queryRunCrm(
 	runId: string,
 	input: {
 		query: string;
-		kinds?: ("contact" | "company" | "rentalContract")[];
+		kinds?: ("contact" | "rentalContract")[];
 		limit: number;
 	},
 ) {
@@ -90,25 +90,21 @@ export async function queryRunCrm(
 	const contacts = result.contacts.filter((row) =>
 		allowed.has(`contact:${row.id}`),
 	);
-	const companies = result.companies.filter((row) =>
-		allowed.has(`company:${row.id}`),
-	);
 	const rentalContracts = result.rentalContracts.filter((row) =>
 		allowed.has(`rentalContract:${row.id}`),
 	);
 	return {
 		...result,
 		contacts,
-		companies,
 		rentalContracts,
-		total: contacts.length + companies.length + rentalContracts.length,
+		total: contacts.length + rentalContracts.length,
 	};
 }
 
 export async function readRunRecord(
 	runId: string,
 	input: {
-		kind: "contact" | "company" | "rentalContract";
+		kind: "contact" | "rentalContract";
 		id: string;
 	},
 ) {
@@ -122,14 +118,6 @@ export async function readRunRecord(
 			includeEmail: sources.gmail,
 			includeCalendar: sources.calendar,
 		});
-	if (input.kind === "company") {
-		return readCompanyHistory(input.id, {
-			threads: 10,
-			people: 50,
-			includeEmail: sources.gmail,
-			includeCalendar: sources.calendar,
-		});
-	}
 	return readRentalContractHistory(input.id, {
 		threads: 10,
 		includeEmail: sources.gmail,
@@ -142,7 +130,7 @@ export async function createRunActivity(
 	callId: string,
 	input: {
 		type: "NOTE" | "TASK";
-		targetKind: "company" | "contact" | "vehicle" | "rentalContract";
+		targetKind: "contact" | "vehicle" | "rentalContract";
 		targetId: string;
 		subject?: string | null;
 		body?: string | null;
@@ -306,7 +294,6 @@ export async function createRunActivity(
 					body: input.body?.trim() || null,
 					occurredAt: now,
 					dueAt: input.type === "TASK" ? dueAt : null,
-					companyId: target.companyId,
 					contactId: target.contactId,
 					vehicleId: target.vehicleId,
 					rentalContractId: target.rentalContractId,
@@ -321,12 +308,6 @@ export async function createRunActivity(
 				update: {},
 			});
 
-			if (target.companyId) {
-				await tx.company.update({
-					where: { id: target.companyId },
-					data: { lastActivityAt: now },
-				});
-			}
 			if (target.contactId) {
 				await tx.contact.update({
 					where: { id: target.contactId },
@@ -489,13 +470,9 @@ function manifestDataScope(value: unknown): {
 		if (!resource || typeof resource !== "object") return [];
 		const row = resource as Record<string, unknown>;
 		if (
-			![
-				"integration",
-				"company",
-				"contact",
-				"vehicle",
-				"rentalContract",
-			].includes(String(row.kind)) ||
+			!["integration", "contact", "vehicle", "rentalContract"].includes(
+				String(row.kind),
+			) ||
 			typeof row.id !== "string" ||
 			typeof row.label !== "string"
 		) {
@@ -574,35 +551,19 @@ export function allowedHistorySources(resources: RunResource[]): {
 }
 
 async function targetRecord(
-	kind: "company" | "contact" | "vehicle" | "rentalContract",
+	kind: "contact" | "vehicle" | "rentalContract",
 	id: string,
 ) {
-	if (kind === "company") {
-		const company = await db.company.findUnique({
-			where: { id },
-			select: { id: true, name: true },
-		});
-		return company
-			? {
-					label: company.name,
-					companyId: company.id,
-					contactId: null,
-					vehicleId: null,
-					rentalContractId: null,
-				}
-			: null;
-	}
 	if (kind === "contact") {
 		const contact = await db.contact.findUnique({
 			where: { id },
-			select: { id: true, firstName: true, lastName: true, companyId: true },
+			select: { id: true, firstName: true, lastName: true },
 		});
 		return contact
 			? {
 					label: [contact.firstName, contact.lastName]
 						.filter(Boolean)
 						.join(" "),
-					companyId: contact.companyId,
 					contactId: contact.id,
 					vehicleId: null,
 					rentalContractId: null,
@@ -617,7 +578,6 @@ async function targetRecord(
 		return vehicle
 			? {
 					label: `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})`,
-					companyId: null,
 					contactId: null,
 					vehicleId: vehicle.id,
 					rentalContractId: null,
@@ -635,7 +595,6 @@ async function targetRecord(
 	return contract
 		? {
 				label: `${contract.vehicle.make} ${contract.vehicle.model} (${contract.vehicle.plateNumber})`,
-				companyId: null,
 				contactId: null,
 				vehicleId: null,
 				rentalContractId: contract.id,
@@ -651,7 +610,7 @@ function recordOf(value: unknown): Record<string, unknown> {
 
 function actionRequestHash(input: {
 	type: "NOTE" | "TASK";
-	targetKind: "company" | "contact" | "vehicle" | "rentalContract";
+	targetKind: "contact" | "vehicle" | "rentalContract";
 	targetId: string;
 	subject?: string | null;
 	body?: string | null;

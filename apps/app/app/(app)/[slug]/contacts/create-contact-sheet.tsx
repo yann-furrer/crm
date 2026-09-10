@@ -6,13 +6,6 @@ import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@crm/ui/components/select";
-import {
 	Sheet,
 	SheetClose,
 	SheetContent,
@@ -23,7 +16,7 @@ import {
 	SheetTrigger,
 } from "@crm/ui/components/sheet";
 import { Spinner } from "@crm/ui/components/spinner";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { parseAsBoolean, useQueryState } from "nuqs";
 import { type ComponentProps, Suspense, useId, useState } from "react";
 import { toast } from "sonner";
@@ -31,26 +24,24 @@ import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 
-const NONE = "none";
-
 function AddButton(props: ComponentProps<typeof Button>) {
 	return (
 		<Button {...props}>
 			<Icon icon={Add} data-icon="inline-start" />
-			New contact
+			New client
 		</Button>
 	);
 }
 
-export function CreateContactSheet({ companyId }: { companyId?: string }) {
+export function CreateContactSheet() {
 	return (
 		<Suspense fallback={<AddButton disabled />}>
-			<CreateContactForm companyId={companyId} />
+			<CreateContactForm />
 		</Suspense>
 	);
 }
 
-function CreateContactForm({ companyId }: { companyId?: string }) {
+function CreateContactForm() {
 	const openRecord = useOpenRecord();
 	const trpc = useTRPC();
 	const cache = useCrmCache();
@@ -63,16 +54,11 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 	const [lastName, setLastName] = useState("");
 	const [email, setEmail] = useState("");
 	const [title, setTitle] = useState("");
-	const [company, setCompany] = useState(companyId ?? NONE);
-	const [ownerId, setOwnerId] = useState(NONE);
 
 	const firstNameId = useId();
 	const lastNameId = useId();
 	const emailId = useId();
 	const titleId = useId();
-
-	const users = useQuery(trpc.users.list.queryOptions());
-	const companies = useQuery(trpc.companies.options.queryOptions({ q: "" }));
 
 	const create = useMutation(
 		trpc.contacts.create.mutationOptions({
@@ -99,10 +85,10 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 			</SheetTrigger>
 			<SheetContent side="right">
 				<SheetHeader>
-					<SheetTitle>New contact</SheetTitle>
+					<SheetTitle>New client</SheetTitle>
 					<SheetDescription>
-						Email addresses are unique, so importing the same person twice
-						updates them rather than duplicating them.
+						L’adresse e-mail est unique. Un même client ne sera pas créé deux
+						fois.
 					</SheetDescription>
 				</SheetHeader>
 
@@ -116,14 +102,12 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 							lastName: lastName || undefined,
 							email: email || undefined,
 							title: title || undefined,
-							companyId: company === NONE ? null : company,
-							ownerId: ownerId === NONE ? null : ownerId,
 						});
 					}}
 				>
 					<FieldGroup>
 						<Field>
-							<FieldLabel htmlFor={firstNameId}>First name</FieldLabel>
+							<FieldLabel htmlFor={firstNameId}>Prénom</FieldLabel>
 							<Input
 								id={firstNameId}
 								value={firstName}
@@ -134,7 +118,7 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={lastNameId}>Last name</FieldLabel>
+							<FieldLabel htmlFor={lastNameId}>Nom</FieldLabel>
 							<Input
 								id={lastNameId}
 								value={lastName}
@@ -144,7 +128,7 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={emailId}>Email</FieldLabel>
+							<FieldLabel htmlFor={emailId}>E-mail</FieldLabel>
 							<Input
 								id={emailId}
 								type="email"
@@ -155,48 +139,14 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={titleId}>Title</FieldLabel>
+							<FieldLabel htmlFor={titleId}>Profession</FieldLabel>
 							<Input
 								id={titleId}
 								value={title}
 								onChange={(event) => setTitle(event.target.value)}
-								placeholder="Head of Security"
+								placeholder="Responsable sécurité"
 								autoComplete="off"
 							/>
-						</Field>
-
-						<Field>
-							<FieldLabel htmlFor="create-contact-company">Company</FieldLabel>
-							<Select value={company} onValueChange={setCompany}>
-								<SelectTrigger id="create-contact-company">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value={NONE}>No company</SelectItem>
-									{(companies.data ?? []).map((option) => (
-										<SelectItem key={option.id} value={option.id}>
-											{option.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-
-						<Field>
-							<FieldLabel htmlFor="create-contact-owner">Owner</FieldLabel>
-							<Select value={ownerId} onValueChange={setOwnerId}>
-								<SelectTrigger id="create-contact-owner">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value={NONE}>Unassigned</SelectItem>
-									{(users.data ?? []).map((user) => (
-										<SelectItem key={user.id} value={user.id}>
-											{user.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
 						</Field>
 					</FieldGroup>
 				</form>
@@ -208,10 +158,10 @@ function CreateContactForm({ companyId }: { companyId?: string }) {
 						disabled={create.isPending || firstName.trim() === ""}
 					>
 						{create.isPending ? <Spinner /> : null}
-						Add contact
+						Ajouter le client
 					</Button>
 					<SheetClose asChild>
-						<Button variant="outline">Cancel</Button>
+						<Button variant="outline">Annuler</Button>
 					</SheetClose>
 				</SheetFooter>
 			</SheetContent>

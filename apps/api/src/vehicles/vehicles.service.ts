@@ -1,8 +1,11 @@
 import {
 	type Db,
+	FuelType,
 	type Prisma,
 	Prisma as PrismaNamespace,
+	RentalContractStatus,
 	type VehicleStatus,
+	VehicleStatus as VehicleStatusEnum,
 } from "@crm/db";
 import { normalizeCurrency } from "@crm/db/currency";
 import {
@@ -29,10 +32,12 @@ import {
 	resolveOrderBy,
 } from "../trpc/list-input";
 import type {
+	VehicleAvailabilityInput,
 	VehicleBulkOwnerInput,
 	VehicleBulkStatusInput,
 	VehicleCreateInput,
 	VehicleListInput,
+	VehicleSetFinancingInput,
 	VehicleUpdateInput,
 } from "./vehicles.contracts";
 
@@ -83,6 +88,7 @@ export class VehiclesService {
 				select: {
 					id: true,
 					type: true,
+					fuelType: true,
 					make: true,
 					model: true,
 					year: true,
@@ -134,6 +140,7 @@ export class VehiclesService {
 			select: {
 				id: true,
 				type: true,
+				fuelType: true,
 				make: true,
 				model: true,
 				year: true,
@@ -155,6 +162,18 @@ export class VehiclesService {
 				photoUrls: true,
 				owner: { select: OWNER_SELECT },
 				createdAt: true,
+				financing: {
+					select: {
+						type: true,
+						principalAmount: true,
+						monthlyPayment: true,
+						currency: true,
+						baseAmount: true,
+						interestRate: true,
+						termMonths: true,
+						startDate: true,
+					},
+				},
 			},
 		});
 
@@ -162,7 +181,8 @@ export class VehiclesService {
 			throw new NotFoundException(`No vehicle with id ${id}.`);
 		}
 
-		const { dailyRate, baseAmount, fxRate, fxRateAt, ...rest } = vehicle;
+		const { dailyRate, baseAmount, fxRate, fxRateAt, financing, ...rest } =
+			vehicle;
 
 		return {
 			...rest,
@@ -178,6 +198,72 @@ export class VehiclesService {
 			nextMaintenanceAtDate:
 				vehicle.nextMaintenanceAtDate?.toISOString() ?? null,
 			createdAt: vehicle.createdAt.toISOString(),
+			financing: financing
+				? {
+						type: financing.type,
+						principalAmountCents: toCents(financing.principalAmount),
+						monthlyPaymentCents: toCents(financing.monthlyPayment),
+						currency: financing.currency,
+						baseAmountCents: toCents(financing.baseAmount),
+						interestRate: financing.interestRate?.toNumber() ?? null,
+						termMonths: financing.termMonths,
+						startDate: financing.startDate.toISOString(),
+					}
+				: null,
+		};
+	}
+
+	async availability(input: VehicleAvailabilityInput) {
+		const startDate = parseDate(input.startDate);
+		const endDate = parseDate(input.endDate);
+		if (!startDate || !endDate || endDate <= startDate) {
+			throw new BadRequestException("Return date must be after pickup date.");
+		}
+
+		const rows = await this.db.vehicle.findMany({
+			where: {
+				status: {
+					notIn: [
+						VehicleStatusEnum.MAINTENANCE,
+						VehicleStatusEnum.OUT_OF_SERVICE,
+						VehicleStatusEnum.STOLEN,
+					],
+				},
+				rentalContracts: {
+					none: {
+						status: {
+							in: [
+								RentalContractStatus.DRAFT,
+								RentalContractStatus.RESERVED,
+								RentalContractStatus.ACTIVE,
+							],
+						},
+						startDate: { lt: endDate },
+						endDate: { gt: startDate },
+					},
+				},
+			},
+			orderBy: [{ make: "asc" }, { model: "asc" }, { plateNumber: "asc" }],
+			select: {
+				id: true,
+				make: true,
+				model: true,
+				fuelType: true,
+				year: true,
+				plateNumber: true,
+				status: true,
+				dailyRate: true,
+				currency: true,
+			},
+		});
+
+		return {
+			startDate: startDate.toISOString(),
+			endDate: endDate.toISOString(),
+			rows: rows.map(({ dailyRate, ...vehicle }) => ({
+				...vehicle,
+				dailyRateCents: toCents(dailyRate),
+			})),
 		};
 	}
 
@@ -194,6 +280,7 @@ export class VehiclesService {
 			const vehicle = await this.db.vehicle.create({
 				data: {
 					type: input.type,
+					fuelType: input.fuelType ?? FuelType.GASOLINE,
 					make: input.make.trim(),
 					model: input.model.trim(),
 					year: input.year ?? null,
@@ -230,6 +317,7 @@ export class VehiclesService {
 		const data: Prisma.VehicleUpdateInput = {};
 
 		if (input.type !== undefined) data.type = input.type;
+		if (input.fuelType !== undefined) data.fuelType = input.fuelType;
 		if (input.make !== undefined) data.make = input.make.trim();
 		if (input.model !== undefined) data.model = input.model.trim();
 		if (input.year !== undefined) data.year = input.year;
@@ -367,6 +455,49 @@ export class VehiclesService {
 
 	async bulkDelete(ids: string[]): Promise<BulkResult> {
 		return runBulk(ids, (id) => this.delete(id));
+	}
+
+	async setFinancing(input: VehicleSetFinancingInput) {
+		const currency = normalizeCurrency(
+			input.currency ?? (await this.conversion.reportingCurrency()),
+		);
+		const fx = await this.conversion.convertFields(
+			decimalFromCents(input.monthlyPaymentCents),
+			currency,
+		);
+		const fields = {
+			type: input.type,
+			principalAmount: decimalFromCents(input.principalAmountCents),
+			monthlyPayment: fromCents(input.monthlyPaymentCents) ?? 0,
+			currency,
+			...fx,
+			interestRate: input.interestRate ?? null,
+			termMonths: input.termMonths ?? null,
+			startDate: parseDate(input.startDate) ?? new Date(),
+		};
+
+		try {
+			await this.db.vehicleFinancing.upsert({
+				where: { vehicleId: input.vehicleId },
+				create: { vehicleId: input.vehicleId, ...fields },
+				update: fields,
+			});
+		} catch (error) {
+			throw this.translate(error, input.vehicleId);
+		}
+
+		this.logger.log({
+			message: "Vehicle financing set",
+			vehicleId: input.vehicleId,
+			type: input.type,
+		});
+
+		return { vehicleId: input.vehicleId };
+	}
+
+	async clearFinancing(vehicleId: string): Promise<{ vehicleId: string }> {
+		await this.db.vehicleFinancing.deleteMany({ where: { vehicleId } });
+		return { vehicleId };
 	}
 
 	private searchFilter(q: string): Prisma.VehicleWhereInput {

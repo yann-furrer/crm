@@ -480,7 +480,6 @@ function useSavedConversation({
 }: {
 	record: {
 		contactId?: string;
-		companyId?: string;
 		vehicleId?: string;
 		rentalContractId?: string;
 	};
@@ -500,7 +499,7 @@ function useSavedConversation({
 	const sessionId = session?.sessionId ?? null;
 	const token = session?.continuationToken ?? null;
 	const streamIndex = session?.streamIndex ?? 0;
-	const { contactId, companyId, vehicleId, rentalContractId } = record;
+	const { contactId, vehicleId, rentalContractId } = record;
 
 	const isNew = conversation === null || conversation.sessionId !== sessionId;
 
@@ -509,7 +508,6 @@ function useSavedConversation({
 		save.mutate(
 			{
 				...(contactId ? { contactId } : {}),
-				...(companyId ? { companyId } : {}),
 				...(vehicleId ? { vehicleId } : {}),
 				...(rentalContractId ? { rentalContractId } : {}),
 				sessionId: sessionId ?? "",

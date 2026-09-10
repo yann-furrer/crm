@@ -18,7 +18,7 @@ import { vehiclesSearchParams } from "./vehicles-search-params";
 import { VehiclesTable } from "./vehicles-table";
 
 export const metadata: Metadata = {
-	title: "Vehicles",
+	title: "Véhicules",
 };
 
 export default function VehiclesPage({
@@ -28,9 +28,9 @@ export default function VehiclesPage({
 		<PageShell className="min-h-0">
 			<PageShellHeader>
 				<PageShellHeading>
-					<PageShellTitle>Vehicles</PageShellTitle>
+					<PageShellTitle>Véhicules</PageShellTitle>
 					<PageShellDescription>
-						The fleet — cars, motorcycles, scooters, trucks and minibuses.
+						La flotte — voitures, motos, scooters, camions et minibus.
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>

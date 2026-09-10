@@ -32,7 +32,6 @@ function stageChange(meta: Record<string, unknown> | null) {
 }
 
 function anchorId(anchor: TimelineAnchor): string {
-	if ("companyId" in anchor) return anchor.companyId;
 	if ("contactId" in anchor) return anchor.contactId;
 	if ("vehicleId" in anchor) return anchor.vehicleId;
 	return anchor.rentalContractId;

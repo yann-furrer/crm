@@ -1,8 +1,6 @@
-import { extract } from "./context-dev";
 import { getProfile, slugFromProfileUrl } from "./linkdapi";
-import { namesMatch } from "./names";
 
-export type PortraitSource = "linkedin" | "github" | "employer-site";
+export type PortraitSource = "linkedin" | "github";
 
 export type PortraitCandidate = {
 	source: PortraitSource;
@@ -14,8 +12,6 @@ export type PortraitSubject = {
 	name: string | null;
 	linkedinUrl: string | null;
 	githubUrl: string | null;
-	companyName: string | null;
-	companyDomain: string | null;
 };
 
 export async function findPortrait(
@@ -59,73 +55,7 @@ export async function findPortrait(
 		};
 	}
 
-	if (subject.companyDomain && subject.name) {
-		const charge = spend(2);
-		if (!charge.ok) return { found: false, tried, reason: charge.reason };
-
-		const fromSite = await fromEmployerSite(subject);
-		if (fromSite) return { found: true, candidate: fromSite };
-		tried.push("Not on the company's own site");
-	}
-
 	return { found: false, tried };
-}
-
-const TEAM_SCHEMA = {
-	type: "object",
-	properties: {
-		people: {
-			type: "array",
-			items: {
-				type: "object",
-				properties: {
-					name: { type: "string" },
-					title: { type: "string" },
-					photoUrl: {
-						type: "string",
-						description: "Absolute URL of this person's headshot.",
-					},
-				},
-				required: ["name"],
-			},
-		},
-	},
-	required: ["people"],
-};
-
-async function fromEmployerSite(
-	subject: PortraitSubject,
-): Promise<PortraitCandidate | null> {
-	const result = await extract(
-		`https://${subject.companyDomain}`,
-		TEAM_SCHEMA,
-		`Find the team, people, about or leadership page for ${subject.companyName ?? subject.companyDomain}. ` +
-			"List every named person shown with a headshot, giving the photograph's absolute URL. " +
-			"Do not include stock photography, customer logos, or people who are not staff.",
-	);
-
-	if (result.outcome !== "found") return null;
-
-	const people = (result.data as { people?: unknown } | null)?.people;
-	if (!Array.isArray(people)) return null;
-
-	for (const entry of people) {
-		if (!entry || typeof entry !== "object") continue;
-		const row = entry as Record<string, unknown>;
-
-		const name = typeof row.name === "string" ? row.name : null;
-		const photo = typeof row.photoUrl === "string" ? row.photoUrl : null;
-		if (!name || !photo) continue;
-		if (!namesMatch(name, subject.name)) continue;
-
-		try {
-			const parsed = new URL(photo);
-			if (parsed.protocol !== "https:" && parsed.protocol !== "http:") continue;
-			return { source: "employer-site", url: parsed.toString() };
-		} catch {}
-	}
-
-	return null;
 }
 
 function githubLogin(raw: string | null): string | null {

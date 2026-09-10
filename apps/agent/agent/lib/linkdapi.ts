@@ -16,15 +16,6 @@ export type Profile = {
 	positions: { name: string; url: string | null }[];
 };
 
-export type Company = {
-	id: string | null;
-	name: string | null;
-	universalName: string | null;
-	tagline: string | null;
-	description: string | null;
-	linkedinUrl: string | null;
-};
-
 export type Experience = {
 	title: string | null;
 	company: string | null;
@@ -114,43 +105,6 @@ export async function getExperience(
 				location: str(row?.location),
 			}),
 		),
-	};
-}
-
-export async function lookupCompany(
-	query: string,
-): Promise<Outcome<{ id: string; displayName: string }[]>> {
-	const result = await call<RawLookup>("/api/v1/companies/name-lookup", {
-		query,
-	});
-	if (!result.ok) return result;
-
-	return {
-		ok: true,
-		data: (result.data.companies ?? []).flatMap((c) =>
-			c?.id ? [{ id: c.id, displayName: c.displayName ?? c.id }] : [],
-		),
-	};
-}
-
-export async function getCompany(nameOrId: string): Promise<Outcome<Company>> {
-	const numeric = /^\d+$/.test(nameOrId);
-	const result = await call<RawCompany>("/api/v1/companies/company/info", {
-		[numeric ? "id" : "name"]: nameOrId,
-	});
-	if (!result.ok) return result;
-
-	const d = result.data;
-	return {
-		ok: true,
-		data: {
-			id: str(d.id),
-			name: str(d.name),
-			universalName: str(d.universalName),
-			tagline: str(d.tagline),
-			description: str(d.description),
-			linkedinUrl: str(d.linkedinUrl),
-		},
 	};
 }
 
@@ -285,15 +239,6 @@ type RawExperienceRow = {
 type RawExperience =
 	| RawExperienceRow[]
 	| { experience?: RawExperienceRow[]; experiences?: RawExperienceRow[] };
-type RawLookup = { companies?: { id?: string; displayName?: string }[] | null };
-type RawCompany = {
-	id?: unknown;
-	name?: unknown;
-	universalName?: unknown;
-	tagline?: unknown;
-	description?: unknown;
-	linkedinUrl?: unknown;
-};
 
 function str(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;

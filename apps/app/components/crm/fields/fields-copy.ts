@@ -4,7 +4,6 @@ import type { FieldEntity } from "./fields-entity";
 export const SHEET_TITLE = "Fields";
 
 const SUBTITLE: Record<RecordKind, string> = {
-	company: "This shapes every company in your CRM.",
 	contact: "This shapes every contact in your CRM.",
 	vehicle: "This shapes every vehicle in your fleet.",
 	rentalContract: "This shapes every rental contract in your CRM.",
@@ -59,14 +58,12 @@ export const ARCHIVE = "Archive";
 export const FILL_REST = "Fill the rest";
 
 const SHEET_PLACEMENT: Record<FieldEntity, string> = {
-	COMPANY: "Show on the company sheet",
 	CONTACT: "Show on the contact sheet",
 	VEHICLE: "Show on the vehicle sheet",
 	RENTAL_CONTRACT: "Show on the rental contract sheet",
 };
 
 const TABLE_PLACEMENT: Record<FieldEntity, string> = {
-	COMPANY: "Offer as a column on the Companies table",
 	CONTACT: "Offer as a column on the Contacts table",
 	VEHICLE: "Offer as a column on the Vehicles table",
 	RENTAL_CONTRACT: "Offer as a column on the Rental Contracts table",
@@ -81,7 +78,6 @@ export function tablePlacement(entity: FieldEntity): string {
 }
 
 export const ENTITY_TABS = [
-	{ kind: "company", label: "Companies" },
 	{ kind: "contact", label: "Contacts" },
 	{ kind: "vehicle", label: "Vehicles" },
 	{ kind: "rentalContract", label: "Rental contracts" },

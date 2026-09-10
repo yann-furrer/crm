@@ -27,7 +27,6 @@ import {
 } from "./timeline-search-params";
 
 export type TimelineAnchor =
-	| { companyId: string }
 	| { contactId: string }
 	| { vehicleId: string }
 	| { rentalContractId: string };

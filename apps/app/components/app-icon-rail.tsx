@@ -1,6 +1,6 @@
 "use client";
 
-import Building from "@carbon/icons-react/es/Building";
+import Calendar from "@carbon/icons-react/es/Calendar";
 import type { CarbonIconType } from "@carbon/icons-react/es/CarbonIcon";
 import CarFront from "@carbon/icons-react/es/CarFront";
 import Chat from "@carbon/icons-react/es/Chat";
@@ -40,7 +40,7 @@ type RailItem = {
 };
 
 const ITEMS: RailItem[] = [
-	{ title: "Overview", href: "/", icon: Dashboard, match: "exact" },
+	{ title: "Vue d’ensemble", href: "/", icon: Dashboard, match: "exact" },
 	{
 		title: "Chat",
 		href: "/chat",
@@ -48,16 +48,21 @@ const ITEMS: RailItem[] = [
 		match: "prefix",
 		related: ["/agents"],
 	},
-	{ title: "Companies", href: "/companies", icon: Building, match: "prefix" },
 	{
-		title: "Contacts",
+		title: "Clients",
 		href: "/contacts",
 		icon: UserMultiple,
 		match: "prefix",
 	},
-	{ title: "Vehicles", href: "/vehicles", icon: CarFront, match: "prefix" },
+	{ title: "Véhicules", href: "/vehicles", icon: CarFront, match: "prefix" },
 	{
-		title: "Rental contracts",
+		title: "Availability",
+		href: "/availability",
+		icon: Calendar,
+		match: "prefix",
+	},
+	{
+		title: "Contrats de location",
 		href: "/rental-contracts",
 		icon: DocumentSigned,
 		match: "prefix",

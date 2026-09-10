@@ -13,7 +13,6 @@ export const RESERVED_SLUGS: readonly string[] = [
 	"agent",
 	"agents",
 	"chat",
-	"companies",
 	"contacts",
 	"vehicles",
 	"rental-contracts",

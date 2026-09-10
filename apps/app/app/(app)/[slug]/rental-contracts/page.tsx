@@ -18,7 +18,7 @@ import { rentalContractsSearchParams } from "./rental-contracts-search-params";
 import { RentalContractsTable } from "./rental-contracts-table";
 
 export const metadata: Metadata = {
-	title: "Rental contracts",
+	title: "Contrats de location",
 };
 
 export default function RentalContractsPage({
@@ -28,10 +28,9 @@ export default function RentalContractsPage({
 		<PageShell className="min-h-0">
 			<PageShellHeader>
 				<PageShellHeading>
-					<PageShellTitle>Rental contracts</PageShellTitle>
+					<PageShellTitle>Contrats de location</PageShellTitle>
 					<PageShellDescription>
-						Reservations, active rentals and everything that has already come
-						back.
+						Réservations, locations en cours et retours de véhicules.
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>

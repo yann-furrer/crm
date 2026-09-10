@@ -1,4 +1,4 @@
-import { domainFromEmail, isMachineDomain } from "../companies/domain";
+import { domainFromEmail, isMachineDomain } from "../crm/domain";
 
 export type Participant = {
 	email: string;

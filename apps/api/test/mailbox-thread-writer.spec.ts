@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, type MailboxSyncModel as MailboxSync } from "@crm/db";
 import type { AgentTriggerService } from "../src/agent/agent-trigger.service";
-import { CompanyDirectoryService } from "../src/companies/company-directory.service";
 import { ActivityStampService } from "../src/crm/activity-stamp.service";
 import { EnrichmentLogService } from "../src/crm/enrichment-log.service";
 import { MailboxMatchService } from "../src/mailbox/mailbox-match.service";
@@ -20,14 +19,11 @@ const movedRoot = `outlook-conversation:${suffix}`;
 
 const agent = {
 	contactCreated: async () => undefined,
-	companyCreated: async () => undefined,
-	companyRequested: async () => undefined,
 } as unknown as AgentTriggerService;
 
 const stamp = new ActivityStampService(db);
-const directory = new CompanyDirectoryService(db, agent);
 const log = new EnrichmentLogService(db, stamp);
-const match = new MailboxMatchService(db, directory, agent, log);
+const match = new MailboxMatchService(db, agent, log);
 const threads = new ThreadWriterService(db, match, stamp);
 
 let row: MailboxSync;
@@ -52,7 +48,6 @@ async function clean() {
 		where: { rootMessageId: { in: [rootId, movedRoot] } },
 	});
 	await db.contact.deleteMany({ where: { email: person } });
-	await db.company.deleteMany({ where: { domain } });
 	await db.mailboxSync.deleteMany({ where: { userId } });
 	await db.user.deleteMany({ where: { id: userId } });
 }
@@ -67,16 +62,11 @@ beforeAll(async () => {
 		data: { userId, source: "gmail", autoCreate: false },
 	});
 
-	const company = await db.company.create({
-		data: { name: "Buyer Co", domain },
-		select: { id: true },
-	});
 	await db.contact.create({
 		data: {
 			firstName: "A",
 			lastName: "Buyer",
 			email: person,
-			companyId: company.id,
 		},
 	});
 });

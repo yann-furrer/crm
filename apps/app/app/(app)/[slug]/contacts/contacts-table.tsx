@@ -10,10 +10,8 @@ import { PersonAvatar } from "@crm/ui/components/person-avatar";
 import { useTableSelection } from "@crm/ui/hooks/use-table-selection";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { CompanyCell } from "@/components/crm/company-cell";
 import { contactName } from "@/components/crm/contact-name";
 import { useFieldColumns } from "@/components/crm/fields/field-columns";
-import { OwnerCell } from "@/components/crm/owner-cell";
 import { usePrefetchRecord } from "@/components/crm/record-sheet/record-prefetch";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
 import { ListSearch } from "@/components/data-table/list-search";
@@ -29,7 +27,7 @@ type ContactRow = RouterOutputs["contacts"]["list"]["rows"][number];
 const COLUMNS: DataTableColumn<ContactRow>[] = [
 	{
 		id: "name",
-		header: "Name",
+		header: "Nom",
 		sortable: true,
 		hideable: false,
 		width: "w-[22%]",
@@ -47,7 +45,7 @@ const COLUMNS: DataTableColumn<ContactRow>[] = [
 	},
 	{
 		id: "title",
-		header: "Title",
+		header: "Profession",
 		sortable: true,
 		width: "w-[20%]",
 		hideBelow: "lg",
@@ -60,7 +58,7 @@ const COLUMNS: DataTableColumn<ContactRow>[] = [
 	},
 	{
 		id: "email",
-		header: "Email",
+		header: "E-mail",
 		sortable: true,
 		width: "w-[24%]",
 		hideBelow: "md",
@@ -72,24 +70,9 @@ const COLUMNS: DataTableColumn<ContactRow>[] = [
 			),
 	},
 	{
-		id: "company",
-		header: "Company",
-		sortable: true,
-		width: "w-[18%]",
-		cell: (row) => <CompanyCell company={row.company} />,
-	},
-	{
-		id: "owner",
-		header: "Owner",
-		sortable: true,
-		width: "w-[16%]",
-		hideBelow: "md",
-		cell: (row) => <OwnerCell owner={row.owner} />,
-	},
-	{
 		id: "createdAt",
-		header: "Created",
-		label: "Created date",
+		header: "Créé le",
+		label: "Date de création",
 		sortable: true,
 		align: "right",
 		width: "w-[10%]",
@@ -102,7 +85,7 @@ const COLUMNS: DataTableColumn<ContactRow>[] = [
 	},
 	{
 		id: "lastActivity",
-		header: "Last activity",
+		header: "Dernière activité",
 		sortable: true,
 		align: "right",
 		width: "w-[12%]",
@@ -129,9 +112,6 @@ export function ContactsTable() {
 		...trpc.contacts.list.queryOptions(input),
 		placeholderData: (previous) => previous,
 	});
-	const users = useQuery(trpc.users.list.queryOptions());
-	const companies = useQuery(trpc.companies.options.queryOptions({ q: "" }));
-
 	const rows = contacts.data?.rows ?? [];
 	const selection = useTableSelection(
 		useMemo(() => rows.map((row) => row.id), [rows]),
@@ -139,30 +119,7 @@ export function ContactsTable() {
 
 	const facetCounts = contacts.data?.facetCounts;
 
-	const facets: DataTableFacet[] = [
-		{
-			id: "owner",
-			label: "Owner",
-			options: [
-				{ value: "unassigned", label: "Unassigned" },
-				...(users.data ?? []).map((user) => ({
-					value: user.id,
-					label: user.name,
-				})),
-			].filter((option) => (facetCounts?.owner?.[option.value] ?? 0) > 0),
-		},
-		{
-			id: "company",
-			label: "Company",
-			options: [
-				{ value: "none", label: "No company" },
-				...(companies.data ?? []).map((company) => ({
-					value: company.id,
-					label: company.name,
-				})),
-			].filter((option) => (facetCounts?.company?.[option.value] ?? 0) > 0),
-		},
-	];
+	const facets: DataTableFacet[] = [];
 
 	const fieldColumns = useFieldColumns<ContactRow>("CONTACT");
 	const columns = useMemo(() => [...COLUMNS, ...fieldColumns], [fieldColumns]);
@@ -170,7 +127,9 @@ export function ContactsTable() {
 	return (
 		<DataTable
 			query={query}
-			search={<ListSearch placeholder="Search by name, email or company…" />}
+			search={
+				<ListSearch placeholder="Rechercher un client par nom ou e-mail…" />
+			}
 			columns={columns}
 			rows={rows}
 			total={contacts.data?.total ?? 0}
@@ -187,7 +146,7 @@ export function ContactsTable() {
 			loading={contacts.isFetching}
 			onRowHover={(row) => prefetchRecord({ kind: "contact", id: row.id })}
 			onRowClick={(row) => openRecord({ kind: "contact", id: row.id })}
-			empty="No contacts match this view."
+			empty="No clients match this view."
 		/>
 	);
 }

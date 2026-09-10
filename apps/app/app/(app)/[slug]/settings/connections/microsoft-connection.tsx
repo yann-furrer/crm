@@ -40,7 +40,7 @@ import { isSyncing, SYNC_POLL_MS } from "@/lib/sync-status";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 
-const AUTO_CREATE = "Add the company and contact when you reply to someone new";
+const AUTO_CREATE = "Add a contact when you reply to someone new";
 
 const CONNECT_ERRORS: Record<string, string> = {
 	"email_doesn't_match":
@@ -99,7 +99,7 @@ function ConnectMicrosoft({ connectError }: { connectError?: string }) {
 					</div>
 				</CardTitle>
 				<CardDescription>
-					Read-only Outlook mail. Only conversations with companies in the CRM
+					Read-only Outlook mail. Only conversations with contacts in the CRM
 					are stored.
 				</CardDescription>
 
@@ -221,7 +221,7 @@ export function MicrosoftConnection({
 					</div>
 				</CardTitle>
 				<CardDescription>
-					Email threads land on the matching company as they happen.
+					Email threads land on the matching contact as they happen.
 				</CardDescription>
 
 				<CardAction>

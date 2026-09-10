@@ -1,9 +1,5 @@
 import type { Evidence } from "./evidence";
-import {
-	looksLikeSameCompany,
-	nameMatchesLocalPart,
-	namesMatch,
-} from "./names";
+import { nameMatchesLocalPart, namesMatch } from "./names";
 import { ask } from "./perplexity";
 
 export type Network = "x" | "github";
@@ -19,8 +15,6 @@ export type Person = {
 	lastName: string | null;
 	fullName: string;
 	title: string | null;
-	companyName: string | null;
-	companyDomain: string | null;
 };
 
 export type Verdict =
@@ -149,7 +143,6 @@ export function extractSocialUrls(haystack: string[]): SocialProfile[] {
 type GithubUser = {
 	login: string;
 	name: string | null;
-	company: string | null;
 	blog: string | null;
 	bio: string | null;
 	type: string;
@@ -193,7 +186,6 @@ async function fetchGithubUser(
 			user: {
 				login: String(body.login ?? handle),
 				name: str(body.name),
-				company: str(body.company),
 				blog: str(body.blog),
 				bio: str(body.bio),
 				type: String(body.type ?? "User"),
@@ -226,45 +218,12 @@ export async function verifyGithub(
 	const evidence: Evidence[] = [];
 	const named = namesMatch(user.name, person.fullName);
 
-	const employed =
-		person.companyName !== null &&
-		user.company !== null &&
-		looksLikeSameCompany(
-			user.company,
-			person.companyName,
-			person.companyDomain ?? "",
-		);
-
 	if (named) {
-		const detail = employed
-			? `the account is named "${user.name}" and its company reads "${user.company}"`
-			: `the account is named "${user.name}"`;
 		evidence.push({
 			kind: "github.account-identity",
-			detail,
+			detail: `the account is named "${user.name}"`,
 			sourceUrl: profile.url,
 		});
-	} else if (employed) {
-		evidence.push({
-			kind: "employer-only",
-			detail: `its company reads "${user.company}" but the account is named "${user.name ?? "—"}"`,
-			sourceUrl: profile.url,
-		});
-	}
-
-	if (person.companyDomain) {
-		const mentions = [user.blog, user.bio]
-			.filter((field): field is string => Boolean(field))
-			.some((field) =>
-				field.toLowerCase().includes(person.companyDomain as string),
-			);
-		if (mentions) {
-			evidence.push({
-				kind: "web.cited-claim",
-				detail: `the profile links ${person.companyDomain}`,
-				sourceUrl: profile.url,
-			});
-		}
 	}
 
 	if (
@@ -285,7 +244,7 @@ export async function verifyGithub(
 			accepted: false,
 			reason:
 				`github.com/${user.login} says nothing connecting it to ${person.fullName}: ` +
-				`name "${user.name ?? "—"}", company "${user.company ?? "—"}".`,
+				`name "${user.name ?? "—"}".`,
 		};
 	}
 
@@ -296,20 +255,6 @@ export async function verifyX(
 	profile: SocialProfile,
 	person: Person,
 ): Promise<Verdict> {
-	if (
-		person.companyName &&
-		looksLikeSameCompany(
-			profile.handle,
-			person.companyName,
-			person.companyDomain ?? "",
-		)
-	) {
-		return {
-			accepted: false,
-			reason: `x.com/${profile.handle} looks like ${person.companyName}'s own account, not ${person.fullName}'s.`,
-		};
-	}
-
 	if (
 		!nameMatchesLocalPart(
 			{ firstName: person.firstName, lastName: person.lastName },
@@ -326,8 +271,7 @@ export async function verifyX(
 
 	const answer = await ask(
 		`Is https://x.com/${profile.handle} the X (Twitter) account of ${person.fullName}` +
-			`${person.title ? `, ${person.title}` : ""}` +
-			`${person.companyName ? ` at ${person.companyName}` : ""}? ` +
+			`${person.title ? `, ${person.title}` : ""}? ` +
 			"Answer yes or no and give the profile URL.",
 		{ domains: ["x.com", "twitter.com"] },
 	);
@@ -380,9 +324,7 @@ export async function findSocialCandidates(
 
 	const answer = await ask(
 		`What is the ${where} profile of ${person.fullName}` +
-			`${person.title ? `, ${person.title}` : ""}` +
-			`${person.companyName ? ` at ${person.companyName}` : ""}` +
-			`${person.companyDomain ? ` (${person.companyDomain})` : ""}? ` +
+			`${person.title ? `, ${person.title}` : ""}? ` +
 			"Reply with the profile URL only, or say you do not know.",
 		{ domains },
 	);

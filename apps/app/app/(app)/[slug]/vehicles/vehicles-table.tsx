@@ -10,6 +10,7 @@ import { StatusIndicator } from "@crm/ui/components/status-indicator";
 import { useTableSelection } from "@crm/ui/hooks/use-table-selection";
 import { formatMoney } from "@crm/ui/lib/format";
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useMemo } from "react";
 import { useFieldColumns } from "@/components/crm/fields/field-columns";
 import { OwnerCell } from "@/components/crm/owner-cell";
@@ -33,6 +34,12 @@ const TYPE_LABEL: Record<string, string> = {
 	MINIBUS: "Minibus",
 };
 
+const FUEL_LABEL: Record<string, string> = {
+	DIESEL: "Diesel",
+	GASOLINE: "Gasoline",
+	ELECTRIC: "Electric",
+};
+
 const STATUS_TONE: Record<
 	string,
 	"neutral" | "info" | "warning" | "success" | "error"
@@ -46,18 +53,18 @@ const STATUS_TONE: Record<
 };
 
 const STATUS_LABEL: Record<string, string> = {
-	AVAILABLE: "Available",
-	RESERVED: "Reserved",
-	RENTED: "Rented",
-	MAINTENANCE: "Maintenance",
-	OUT_OF_SERVICE: "Out of service",
-	STOLEN: "Stolen",
+	AVAILABLE: "Disponible",
+	RESERVED: "Réservé",
+	RENTED: "Loué",
+	MAINTENANCE: "Entretien",
+	OUT_OF_SERVICE: "Hors service",
+	STOLEN: "Volé",
 };
 
 const COLUMNS: DataTableColumn<VehicleRow>[] = [
 	{
 		id: "make",
-		header: "Vehicle",
+		header: "Véhicule",
 		sortable: true,
 		hideable: false,
 		width: "w-[24%]",
@@ -78,8 +85,14 @@ const COLUMNS: DataTableColumn<VehicleRow>[] = [
 		cell: (row) => TYPE_LABEL[row.type] ?? row.type,
 	},
 	{
+		id: "fuelType",
+		header: "Carburant",
+		width: "w-[12%]",
+		cell: (row) => FUEL_LABEL[row.fuelType] ?? row.fuelType,
+	},
+	{
 		id: "status",
-		header: "Status",
+		header: "Statut",
 		sortable: true,
 		width: "w-[14%]",
 		cell: (row) => (
@@ -91,7 +104,7 @@ const COLUMNS: DataTableColumn<VehicleRow>[] = [
 	},
 	{
 		id: "dailyRate",
-		header: "Daily rate",
+		header: "Tarif journalier",
 		sortable: true,
 		align: "right",
 		width: "w-[12%]",
@@ -107,7 +120,7 @@ const COLUMNS: DataTableColumn<VehicleRow>[] = [
 	},
 	{
 		id: "mileage",
-		header: "Mileage",
+		header: "Kilométrage",
 		sortable: true,
 		align: "right",
 		width: "w-[10%]",
@@ -144,6 +157,60 @@ const COLUMNS: DataTableColumn<VehicleRow>[] = [
 		),
 	},
 ];
+
+const PLACEHOLDER_PHOTO = "/2008-bugatti-veyron-side-right.webp";
+
+function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
+	return (
+		<div className="flex h-full flex-col overflow-hidden rounded-lg border bg-card transition-colors hover:border-foreground/20">
+			<div className="relative h-28 shrink-0 border-b bg-muted">
+				<Image
+					src={PLACEHOLDER_PHOTO}
+					alt={`${vehicle.make} ${vehicle.model}`}
+					fill
+					className="object-contain p-2"
+				/>
+				<StatusIndicator
+					tone={STATUS_TONE[vehicle.status] ?? "neutral"}
+					label={STATUS_LABEL[vehicle.status] ?? vehicle.status}
+					size="sm"
+					className="absolute top-2 right-2 rounded-sm border bg-background px-1.5 py-1"
+				/>
+			</div>
+			<div className="flex flex-1 flex-col gap-2.5 p-3">
+				<div className="min-w-0">
+					<div className="truncate font-semibold text-base leading-tight">
+						{vehicle.make} {vehicle.model}
+					</div>
+					<div className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+						<span className="shrink-0 rounded-sm border px-1 py-0.5 font-mono text-foreground tabular-nums">
+							{vehicle.plateNumber}
+						</span>
+						<span className="truncate">
+							{TYPE_LABEL[vehicle.type] ?? vehicle.type} ·{" "}
+							{FUEL_LABEL[vehicle.fuelType] ?? vehicle.fuelType}
+						</span>
+					</div>
+				</div>
+				<div className="mt-auto flex items-end justify-between gap-2 border-t pt-2.5">
+					<OwnerCell owner={vehicle.owner} compact />
+					<div className="text-right">
+						{vehicle.dailyRateCents === null ? (
+							<EmptyCellValue />
+						) : (
+							<>
+								<span className="font-semibold tabular-nums">
+									{formatMoney(vehicle.dailyRateCents, vehicle.currency)}
+								</span>
+								<span className="text-muted-foreground text-xs"> /day</span>
+							</>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 export function VehiclesTable() {
 	const openRecord = useOpenRecord();
@@ -202,6 +269,7 @@ export function VehiclesTable() {
 				<ListSearch placeholder="Search vehicles by plate, make or model…" />
 			}
 			columns={columns}
+			renderCard={(row) => <VehicleCard vehicle={row} />}
 			rows={rows}
 			total={vehicles.data?.total ?? 0}
 			facetCounts={facetCounts}

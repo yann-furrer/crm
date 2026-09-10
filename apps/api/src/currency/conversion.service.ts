@@ -11,30 +11,43 @@ import { readReportingCurrency } from "@crm/db/settings";
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
 
-export type ConvertibleEntity = "vehicle" | "rentalContract" | "payment";
+export type ConvertibleEntity =
+	| "vehicle"
+	| "rentalContract"
+	| "payment"
+	| "vehicleFinancing"
+	| "vehicleCharge";
 
 export const CONVERTIBLE_ENTITIES: readonly ConvertibleEntity[] = [
 	"vehicle",
 	"rentalContract",
 	"payment",
+	"vehicleFinancing",
+	"vehicleCharge",
 ];
 
 const TABLE: Record<ConvertibleEntity, string> = {
 	vehicle: "vehicle",
 	rentalContract: "rentalContract",
 	payment: "payment",
+	vehicleFinancing: "vehicleFinancing",
+	vehicleCharge: "vehicleCharge",
 };
 
 const AMOUNT_COLUMN: Record<ConvertibleEntity, string> = {
 	vehicle: "dailyRate",
 	rentalContract: "totalAmount",
 	payment: "amount",
+	vehicleFinancing: "monthlyPayment",
+	vehicleCharge: "amount",
 };
 
 const NULLABLE_AMOUNT: Record<ConvertibleEntity, boolean> = {
 	vehicle: true,
 	rentalContract: false,
 	payment: false,
+	vehicleFinancing: false,
+	vehicleCharge: false,
 };
 
 function amountPresentWhere(entity: ConvertibleEntity): object {

@@ -6,22 +6,14 @@ import { InjectDatabase } from "../database/database.constants";
 export class AgentQueueService {
 	constructor(@InjectDatabase() private readonly db: Db) {}
 
-	async queuedCompanies(ids: readonly string[]): Promise<Set<string>> {
-		return this.queued("companyId", ids);
-	}
-
 	async queuedContacts(ids: readonly string[]): Promise<Set<string>> {
 		return this.queued("contactId", ids);
 	}
 
-	async isQueued(subject: {
-		companyId?: string;
-		contactId?: string;
-	}): Promise<boolean> {
+	async isQueued(subject: { contactId?: string }): Promise<boolean> {
 		const row = await this.db.agentTask.findFirst({
 			where: {
 				finishedAt: null,
-				...(subject.companyId ? { companyId: subject.companyId } : {}),
 				...(subject.contactId ? { contactId: subject.contactId } : {}),
 			},
 			select: { id: true },
@@ -31,7 +23,7 @@ export class AgentQueueService {
 	}
 
 	private async queued(
-		column: "companyId" | "contactId",
+		column: "contactId",
 		ids: readonly string[],
 	): Promise<Set<string>> {
 		if (ids.length === 0) return new Set();

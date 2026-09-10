@@ -10,9 +10,8 @@ export default defineTool({
 		"Find candidate LinkedIn profile slugs for a work email address. Returns CANDIDATES ONLY — you must verify each with get_linkedin_profile before believing any of them.",
 	inputSchema: z.object({
 		email: z.string().describe("The contact's work email address."),
-		companyName: z.string().describe("The company the CRM has them at."),
 	}),
-	async execute({ email, companyName }) {
+	async execute({ email }) {
 		if (!(await enabled("PERPLEXITY_API_KEY"))) {
 			return { candidateSlugs: [], ...unavailable("PERPLEXITY_API_KEY") };
 		}
@@ -22,7 +21,7 @@ export default defineTool({
 
 		const local = email.split("@")[0] ?? "";
 		const terms = searchTerms(local);
-		const slugs = await findProfileUrls(terms, companyName);
+		const slugs = await findProfileUrls(terms);
 
 		return {
 			searchedFor: terms,

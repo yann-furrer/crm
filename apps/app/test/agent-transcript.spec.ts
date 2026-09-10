@@ -3,11 +3,9 @@ import { readdirSync } from "node:fs";
 import type { EveMessage } from "eve/react";
 import {
 	conversationTimeline,
-	dealListResultOf,
 	describe as describeStep,
 	eventStreamSettled,
 	latestTurnFailure,
-	mergeDealListResultPages,
 	NEW_THREAD,
 	outcomeTone,
 	pendingQuestion,
@@ -124,16 +122,16 @@ describe("toTranscript", () => {
 	it("keeps a tool name and structured output for dedicated result UI", () => {
 		const grouped = toTranscript([
 			message([
-				tool("list_deals", {
-					output: { deals: [] },
+				tool("list_rental_contracts", {
+					output: { rentalContracts: [] },
 				}),
 			]),
 		]);
 
 		expect(grouped[0]?.items[0]).toMatchObject({
 			kind: "did",
-			tool: "list_deals",
-			output: { deals: [] },
+			tool: "list_rental_contracts",
+			output: { rentalContracts: [] },
 		});
 	});
 
@@ -162,113 +160,23 @@ describe("toTranscript", () => {
 	});
 });
 
-describe("deal list presentation", () => {
-	const output = {
-		asOf: "2026-08-06T01:14:05.025Z",
-		criteria: {
-			status: "open",
-			inactiveForDays: 14,
-			companyId: null,
-			ownerId: null,
-		},
-		deals: [
-			{
-				id: "deal-1",
-				name: "Notion — expansion",
-				stage: "CONTRACT_SENT",
-				amount: 14_000,
-				currency: "USD",
-				company: {
-					id: "company-1",
-					name: "Notion",
-					domain: "notion.so",
-					iconUrl: "https://cdn.example.test/notion.png",
-					iconDarkUrl: null,
-					iconTone: "opaque",
-					logoUrl: "https://cdn.example.test/notion.svg",
-				},
-				owner: {
-					id: "user-1",
-					name: "Priya Raman",
-					email: "priya@example.com",
-					image: "https://cdn.example.test/priya.png",
-				},
-				daysSinceLastActivity: 201,
-				neverActive: true,
-				expectedCloseDate: "2026-09-03T19:50:06.111Z",
-			},
-		],
-		hasMore: false,
-	};
-
-	it("parses structured list_deals output", () => {
-		expect(dealListResultOf(output)).toMatchObject({
-			criteria: { status: "open", inactiveForDays: 14 },
-			deals: [
-				{
-					id: "deal-1",
-					daysSinceLastActivity: 201,
-					company: {
-						iconUrl: "https://cdn.example.test/notion.png",
-					},
-					owner: { image: "https://cdn.example.test/priya.png" },
-				},
-			],
-		});
-		expect(dealListResultOf({ deals: [] })).toBeNull();
-	});
-
-	it("merges paginated deal results without duplicate rows", () => {
-		const first = dealListResultOf({ ...output, hasMore: true });
-		const second = dealListResultOf({
-			...output,
-			asOf: "2026-08-06T01:15:00.000Z",
-			deals: [
-				output.deals[0],
-				{ ...output.deals[0], id: "deal-2", name: "Linear — Comp AI" },
-			],
-		});
-		if (!first || !second) throw new Error("Expected valid deal list results");
-
-		expect(mergeDealListResultPages([first, second])).toMatchObject([
-			{
-				asOf: "2026-08-06T01:15:00.000Z",
-				hasMore: false,
-				deals: [{ id: "deal-1" }, { id: "deal-2" }],
-			},
-		]);
-	});
-
-	it("keeps different deal query scopes in separate result groups", () => {
-		const open = dealListResultOf(output);
-		const company = dealListResultOf({
-			...output,
-			criteria: { ...output.criteria, companyId: "company-1" },
-		});
-		if (!open || !company) throw new Error("Expected valid deal list results");
-
-		expect(mergeDealListResultPages([open, company])).toMatchObject([
-			{ criteria: { companyId: null }, deals: [{ id: "deal-1" }] },
-			{ criteria: { companyId: "company-1" }, deals: [{ id: "deal-1" }] },
-		]);
-	});
-
+describe("splitMarkdownTable", () => {
 	it("removes model-authored Markdown tables while keeping its analysis", () => {
 		const markdown = [
-			"I found two stale deals.",
+			"I found two stale rental contracts.",
 			"",
-			"| Deal | Idle |",
+			"| Vehicle | Idle |",
 			"|---|---|",
-			"| Notion | 201 days |",
-			"| Linear | 134 days |",
+			"| DK-1234-AA | 201 days |",
+			"| DK-2201-AB | 134 days |",
 			"",
 			"### What stands out",
-			"Follow up on Notion first.",
+			"Follow up on DK-1234-AA first.",
 		].join("\n");
 
 		expect(splitMarkdownTable(markdown)).toEqual({
-			before: "I found two stale deals.",
-			after: "### What stands out\nFollow up on Notion first.",
+			before: "I found two stale rental contracts.",
+			after: "### What stands out\nFollow up on DK-1234-AA first.",
 			found: true,
 		});
 	});

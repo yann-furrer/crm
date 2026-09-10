@@ -49,11 +49,11 @@ import { useTRPC } from "@/lib/trpc/client";
 const SOURCES = {
 	calendar: {
 		label: "Meetings",
-		autoCreate: "Add the company and contact when you meet someone new",
+		autoCreate: "Add a contact when you meet someone new",
 	},
 	gmail: {
 		label: "Email",
-		autoCreate: "Add the company and contact when you reply to someone new",
+		autoCreate: "Add a contact when you reply to someone new",
 	},
 } as const;
 
@@ -161,7 +161,7 @@ function ConnectGoogle({ connectError }: { connectError?: string }) {
 					</div>
 				</CardTitle>
 				<CardDescription>
-					Read-only Gmail and Calendar. Only conversations with companies in the
+					Read-only Gmail and Calendar. Only conversations with contacts in the
 					CRM are stored.
 				</CardDescription>
 
@@ -292,7 +292,7 @@ export function GoogleConnection({ connectError }: { connectError?: string }) {
 					</div>
 				</CardTitle>
 				<CardDescription>
-					Meetings and email threads land on the matching company as they
+					Meetings and email threads land on the matching contact as they
 					happen.
 				</CardDescription>
 

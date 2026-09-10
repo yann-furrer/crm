@@ -70,12 +70,6 @@ const TASK_COLUMNS: SimpleTableColumn[] = [
 const ACTIVITY_COLUMNS: SimpleTableColumn[] = [
 	{ id: "activity", header: "Activity" },
 	{
-		id: "company",
-		header: "Company",
-		width: "w-44",
-		className: "hidden md:table-cell",
-	},
-	{
 		id: "contract",
 		header: "Contract",
 		width: "w-48",
@@ -244,10 +238,6 @@ export function DashboardSummary() {
 														>
 															{task.rentalContract.vehicle.plateNumber}
 														</RecordLink>
-													) : task.company ? (
-														<RecordLink kind="company" id={task.company.id}>
-															{task.company.name}
-														</RecordLink>
 													) : null}
 												</span>
 											</span>
@@ -282,11 +272,6 @@ export function DashboardSummary() {
 							? "Every note, task and status change you have logged"
 							: "Every note, task and status change across the workspace"}
 					</CardDescription>
-					<CardAction>
-						<Button asChild variant="contrast" size="sm">
-							<Link href={workspaceUrl("/companies")}>All companies</Link>
-						</Button>
-					</CardAction>
 				</CardHeader>
 				{recentActivity.length === 0 ? (
 					<CardTableEmpty>Nothing has happened yet.</CardTableEmpty>
@@ -298,15 +283,6 @@ export function DashboardSummary() {
 									<span className="truncate">
 										{entry.subject ?? activityLabel(entry.type)}
 									</span>
-								</TableCell>
-								<TableCell className={`${CELL} hidden md:table-cell`}>
-									{entry.company ? (
-										<RecordLink kind="company" id={entry.company.id}>
-											{entry.company.name}
-										</RecordLink>
-									) : (
-										<EmptyCellValue />
-									)}
 								</TableCell>
 								<TableCell className={`${CELL} hidden lg:table-cell`}>
 									{entry.rentalContract ? (

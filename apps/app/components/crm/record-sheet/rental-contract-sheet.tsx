@@ -180,6 +180,7 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 						<ContractIncidents
 							contractId={contract.id}
 							vehicleId={contract.vehicle.id}
+							depositCurrency={contract.depositCurrency}
 						/>
 					),
 				},
@@ -793,9 +794,11 @@ function PaymentForm({
 function ContractIncidents({
 	contractId,
 	vehicleId,
+	depositCurrency,
 }: {
 	contractId: string;
 	vehicleId: string;
+	depositCurrency: string;
 }) {
 	const trpc = useTRPC();
 	const [adding, setAdding] = useState(false);
@@ -812,6 +815,7 @@ function ContractIncidents({
 		<ContractIncidentForm
 			contractId={contractId}
 			vehicleId={vehicleId}
+			depositCurrency={depositCurrency}
 			onDone={() => setAdding(false)}
 		/>
 	) : null;
@@ -875,27 +879,79 @@ function ContractIncidents({
 function ContractIncidentForm({
 	contractId,
 	vehicleId,
+	depositCurrency,
 	onDone,
 }: {
 	contractId: string;
 	vehicleId: string;
+	depositCurrency: string;
 	onDone: () => void;
 }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
 	const [description, setDescription] = useState("");
+	const [depositOutcome, setDepositOutcome] = useState("NONE");
+	const [depositDeductedAmount, setDepositDeductedAmount] = useState("");
+	const [document, setDocument] = useState<File | null>(null);
+	const [documentType, setDocumentType] = useState("PHOTO");
+	const [documentAmount, setDocumentAmount] = useState("");
+	const [insuranceReimbursedAmount, setInsuranceReimbursedAmount] =
+		useState("");
 	const descriptionId = useId();
 
 	const create = useMutation(
 		trpc.incidents.create.mutationOptions({
-			onSuccess: async () => {
-				await cache.rentalContract(contractId);
-				toast.success("Incident reported.");
-				onDone();
-			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);
+
+	const submit = async () => {
+		const incident = await create.mutateAsync({
+			vehicleId,
+			rentalContractId: contractId,
+			type: "DAMAGE",
+			description,
+			depositOutcome: depositOutcome as "NONE" | "PARTIAL" | "FULL",
+			depositDeductedAmountCents: depositDeductedAmount
+				? Math.round(Number(depositDeductedAmount) * 100)
+				: undefined,
+			depositCurrency: depositDeductedAmount ? depositCurrency : undefined,
+		});
+
+		if (document) {
+			const body = new FormData();
+			body.append("file", document);
+			body.append(
+				"type",
+				document.type === "application/pdf" ? documentType : "PHOTO",
+			);
+			if (documentAmount)
+				body.append("amountCents", String(Number(documentAmount) * 100));
+			if (insuranceReimbursedAmount) {
+				body.append(
+					"insuranceReimbursedAmountCents",
+					String(Number(insuranceReimbursedAmount) * 100),
+				);
+			}
+			body.append("currency", depositCurrency);
+			const response = await fetch(`/api/incidents/${incident.id}/documents`, {
+				method: "POST",
+				body,
+			});
+			if (!response.ok) {
+				toast.error(
+					"The incident was saved, but the document failed to upload.",
+				);
+			}
+		}
+
+		await Promise.all([
+			cache.rentalContract(contractId),
+			cache.vehicle(vehicleId),
+		]);
+		toast.success("Incident reported.");
+		onDone();
+	};
 
 	return (
 		<QuickAddForm
@@ -903,14 +959,7 @@ function ContractIncidentForm({
 			pending={create.isPending}
 			ready={description.trim() !== ""}
 			onCancel={onDone}
-			onSubmit={() =>
-				create.mutate({
-					vehicleId,
-					rentalContractId: contractId,
-					type: "DAMAGE",
-					description,
-				})
-			}
+			onSubmit={() => void submit()}
 		>
 			<Field className="sm:col-span-2">
 				<FieldLabel htmlFor={descriptionId}>What happened</FieldLabel>
@@ -922,6 +971,83 @@ function ContractIncidentForm({
 					rows={3}
 				/>
 			</Field>
+			<Field>
+				<FieldLabel>Deposit outcome</FieldLabel>
+				<Select value={depositOutcome} onValueChange={setDepositOutcome}>
+					<SelectTrigger className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="NONE">No deposit deduction</SelectItem>
+						<SelectItem value="PARTIAL">Partially forfeited</SelectItem>
+						<SelectItem value="FULL">Fully forfeited</SelectItem>
+					</SelectContent>
+				</Select>
+			</Field>
+			<Field>
+				<FieldLabel htmlFor="deposit-deducted">Deposit deducted</FieldLabel>
+				<Input
+					id="deposit-deducted"
+					inputMode="decimal"
+					placeholder={`Amount in ${depositCurrency}`}
+					value={depositDeductedAmount}
+					onChange={(event) => setDepositDeductedAmount(event.target.value)}
+				/>
+			</Field>
+			<Field className="sm:col-span-2">
+				<FieldLabel htmlFor="incident-document">
+					Photos or police report
+				</FieldLabel>
+				<Input
+					id="incident-document"
+					type="file"
+					accept="image/jpeg,image/png,image/webp,application/pdf"
+					onChange={(event) => setDocument(event.target.files?.[0] ?? null)}
+				/>
+			</Field>
+			{document?.type === "application/pdf" ? (
+				<Field>
+					<FieldLabel>Document type</FieldLabel>
+					<Select value={documentType} onValueChange={setDocumentType}>
+						<SelectTrigger className="w-full">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="POLICE_REPORT">Police report</SelectItem>
+							<SelectItem value="INVOICE">Invoice</SelectItem>
+							<SelectItem value="OTHER">Other document</SelectItem>
+						</SelectContent>
+					</Select>
+				</Field>
+			) : null}
+			{documentType === "INVOICE" ? (
+				<>
+					<Field>
+						<FieldLabel htmlFor="invoice-amount">Invoice amount</FieldLabel>
+						<Input
+							id="invoice-amount"
+							inputMode="decimal"
+							placeholder={`Amount in ${depositCurrency}`}
+							value={documentAmount}
+							onChange={(event) => setDocumentAmount(event.target.value)}
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="insurance-reimbursed">
+							Insurance reimbursed
+						</FieldLabel>
+						<Input
+							id="insurance-reimbursed"
+							inputMode="decimal"
+							placeholder={`Amount in ${depositCurrency}`}
+							value={insuranceReimbursedAmount}
+							onChange={(event) =>
+								setInsuranceReimbursedAmount(event.target.value)
+							}
+						/>
+					</Field>
+				</>
+			) : null}
 		</QuickAddForm>
 	);
 }
