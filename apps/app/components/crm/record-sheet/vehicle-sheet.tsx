@@ -1484,21 +1484,105 @@ function DamageAreaPicker({
 		);
 
 	return (
-		<div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-5">
-			{DAMAGE_AREA_OPTIONS.map((area) => {
-				const selected = value.includes(area.value);
-				return (
-					<button
+		<div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+			<div className="grid grid-cols-3 gap-2">
+				<span />
+				<DamageAreaButton
+					area={DAMAGE_AREA_OPTIONS[0]}
+					selected={value.includes("FRONT")}
+					onToggle={toggle}
+				/>
+				<span />
+			</div>
+			<div className="grid grid-cols-3 items-center gap-2">
+				<DamageAreaButton
+					area={DAMAGE_AREA_OPTIONS[2]}
+					selected={value.includes("LEFT_SIDE")}
+					onToggle={toggle}
+				/>
+				<svg
+					viewBox="0 0 120 64"
+					aria-hidden="true"
+					className="h-16 w-full text-muted-foreground"
+				>
+					<rect
+						x="30"
+						y="4"
+						width="60"
+						height="56"
+						rx="18"
+						fill="currentColor"
+						opacity="0.12"
+					/>
+					<path
+						d="M42 15h36l8 12v20H34V27l8-12Z"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+					/>
+					<path
+						d="M39 28h42M42 15l4 13M78 15l-4 13"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+					/>
+					<circle cx="42" cy="49" r="5" fill="currentColor" />
+					<circle cx="78" cy="49" r="5" fill="currentColor" />
+				</svg>
+				<DamageAreaButton
+					area={DAMAGE_AREA_OPTIONS[3]}
+					selected={value.includes("RIGHT_SIDE")}
+					onToggle={toggle}
+				/>
+			</div>
+			<div className="grid grid-cols-3 gap-2">
+				<DamageAreaButton
+					area={DAMAGE_AREA_OPTIONS[8]}
+					selected={value.includes("LEFT_WHEEL")}
+					onToggle={toggle}
+				/>
+				<DamageAreaButton
+					area={DAMAGE_AREA_OPTIONS[1]}
+					selected={value.includes("REAR")}
+					onToggle={toggle}
+				/>
+				<DamageAreaButton
+					area={DAMAGE_AREA_OPTIONS[9]}
+					selected={value.includes("RIGHT_WHEEL")}
+					onToggle={toggle}
+				/>
+			</div>
+			<div className="flex flex-wrap gap-2 border-t pt-2">
+				{DAMAGE_AREA_OPTIONS.slice(4, 8).map((area) => (
+					<DamageAreaButton
 						key={area.value}
-						type="button"
-						aria-pressed={selected}
-						onClick={() => toggle(area.value)}
-						className="min-h-10 rounded-md border bg-background px-2 py-2 text-sm transition-colors hover:bg-accent aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
-					>
-						{area.label}
-					</button>
-				);
-			})}
+						area={area}
+						selected={value.includes(area.value)}
+						onToggle={toggle}
+					/>
+				))}
+			</div>
 		</div>
+	);
+}
+
+function DamageAreaButton({
+	area,
+	selected,
+	onToggle,
+}: {
+	area: (typeof DAMAGE_AREA_OPTIONS)[number];
+	selected: boolean;
+	onToggle: (area: DamageArea) => void;
+}) {
+	return (
+		<button
+			type="button"
+			aria-pressed={selected}
+			onClick={() => onToggle(area.value)}
+			className="min-h-10 flex-1 rounded-md border bg-background px-2 py-2 text-sm transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
+		>
+			{area.label}
+		</button>
 	);
 }
