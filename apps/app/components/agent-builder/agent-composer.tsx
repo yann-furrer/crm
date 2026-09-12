@@ -548,7 +548,7 @@ export function AgentComposer({
 							</span>
 						}
 						successLabel={<span className="sr-only">Sent</span>}
-						errorLabel={<span className="sr-only">Send failed</span>}
+						errorLabel={<span className="sr-only">Échec de l’envoi</span>}
 					>
 						<Icon icon={ArrowUp} />
 					</AsyncButtonContent>

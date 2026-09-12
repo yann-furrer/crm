@@ -13,11 +13,11 @@ const PRESENTATION: Record<
 	RentalContractStatus,
 	{ label: string; tone: StatusTone }
 > = {
-	DRAFT: { label: "Draft", tone: "neutral" },
-	RESERVED: { label: "Reserved", tone: "info" },
-	ACTIVE: { label: "Active", tone: "warning" },
-	COMPLETED: { label: "Completed", tone: "success" },
-	CANCELLED: { label: "Cancelled", tone: "error" },
+	DRAFT: { label: "Brouillon", tone: "neutral" },
+	RESERVED: { label: "Réservé", tone: "info" },
+	ACTIVE: { label: "Actif", tone: "warning" },
+	COMPLETED: { label: "Terminé", tone: "success" },
+	CANCELLED: { label: "Annulé", tone: "error" },
 };
 
 export const OPEN_STATUSES = ORDER.slice(

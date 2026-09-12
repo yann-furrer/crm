@@ -240,14 +240,18 @@ export function MicrosoftConnection({
 				{!hasRefreshToken ? (
 					<Alert variant="destructive">
 						<Icon icon={Warning} />
-						<AlertTitle>Microsoft did not return a refresh token</AlertTitle>
-						<AlertDescription>Sign out and back in.</AlertDescription>
+						<AlertTitle>
+							Microsoft n’a pas renvoyé de jeton de renouvellement
+						</AlertTitle>
+						<AlertDescription>
+							Déconnectez-vous puis reconnectez-vous.
+						</AlertDescription>
 					</Alert>
 				) : failing.length > 0 ? (
 					failing.map((source) => (
 						<Alert key={source.source} variant="destructive">
 							<Icon icon={Warning} />
-							<AlertTitle>Email sync failed</AlertTitle>
+							<AlertTitle>Échec de la synchronisation des e-mails</AlertTitle>
 							<AlertDescription>
 								{source.lastError ?? "Microsoft needs reconnecting."}
 							</AlertDescription>
@@ -257,10 +261,11 @@ export function MicrosoftConnection({
 					<p className="text-muted-foreground text-xs">
 						{lastSyncedAt ? (
 							<>
-								Last checked <LocalRelativeTime date={lastSyncedAt} />
+								Dernière vérification :{" "}
+								<LocalRelativeTime date={lastSyncedAt} />
 							</>
 						) : (
-							"Waiting for the first check"
+							"En attente de la première vérification"
 						)}
 					</p>
 				)}
@@ -274,7 +279,7 @@ export function MicrosoftConnection({
 							htmlFor={`auto-create-${source.source}`}
 							className="flex flex-col items-start gap-1"
 						>
-							<span className="text-sm">Email</span>
+							<span className="text-sm">E-mail</span>
 							<span className="font-normal text-muted-foreground text-xs">
 								{AUTO_CREATE}
 							</span>
@@ -296,13 +301,15 @@ export function MicrosoftConnection({
 						<AlertDialog>
 							<AlertDialogTrigger asChild>
 								<Button variant="ghost" size="xs" disabled={purge.isPending}>
-									Delete synced data
+									Supprimer les données synchronisées
 								</Button>
 							</AlertDialogTrigger>
 
 							<AlertDialogContent>
 								<AlertDialogHeader>
-									<AlertDialogTitle>Delete synced data?</AlertDialogTitle>
+									<AlertDialogTitle>
+										Supprimer les données synchronisées ?
+									</AlertDialogTitle>
 									<AlertDialogDescription>
 										Every email brought in from Outlook is removed from the CRM.
 										The next check starts from now, so nothing deleted here
@@ -311,12 +318,12 @@ export function MicrosoftConnection({
 								</AlertDialogHeader>
 
 								<AlertDialogFooter>
-									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogCancel>Annuler</AlertDialogCancel>
 									<AlertDialogAction
 										variant="destructive"
 										onClick={() => purge.mutate()}
 									>
-										Delete
+										Supprimer
 									</AlertDialogAction>
 								</AlertDialogFooter>
 							</AlertDialogContent>
@@ -325,13 +332,13 @@ export function MicrosoftConnection({
 						<AlertDialog>
 							<AlertDialogTrigger asChild>
 								<Button variant="ghost" size="xs" disabled={revoke.isPending}>
-									Disconnect Microsoft
+									Déconnecter Microsoft
 								</Button>
 							</AlertDialogTrigger>
 
 							<AlertDialogContent>
 								<AlertDialogHeader>
-									<AlertDialogTitle>Disconnect Microsoft?</AlertDialogTitle>
+									<AlertDialogTitle>Déconnecter Microsoft ?</AlertDialogTitle>
 									<AlertDialogDescription>
 										{required
 											? "You will be signed out, and you cannot use the CRM again until you grant access."
@@ -342,12 +349,12 @@ export function MicrosoftConnection({
 								</AlertDialogHeader>
 
 								<AlertDialogFooter>
-									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogCancel>Annuler</AlertDialogCancel>
 									<AlertDialogAction
 										variant="destructive"
 										onClick={() => revoke.mutate()}
 									>
-										Disconnect
+										Déconnecter
 									</AlertDialogAction>
 								</AlertDialogFooter>
 							</AlertDialogContent>

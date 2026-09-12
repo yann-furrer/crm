@@ -471,7 +471,7 @@ type SeededVehicle = {
 	status: VehicleStatus;
 };
 
-async function seedVehicles(ownerIds: string[]): Promise<SeededVehicle[]> {
+async function seedVehicles(): Promise<SeededVehicle[]> {
 	const vehicles: SeededVehicle[] = [];
 
 	for (const spec of VEHICLES) {
@@ -502,7 +502,6 @@ async function seedVehicles(ownerIds: string[]): Promise<SeededVehicle[]> {
 				insuranceExpiresAt: daysFromNow(integer(-30, 300)),
 				registrationExpiresAt: daysFromNow(integer(-10, 400)),
 				nextMaintenanceAtKm: spec.mileage + integer(1500, 5000),
-				ownerId: pick(ownerIds),
 				createdAt: daysFromNow(-integer(30, 500), 12),
 			},
 			update: {},
@@ -1200,7 +1199,7 @@ async function main() {
 	const rates = await seedRates();
 	const ownerIds = await seedOwners();
 	const contacts = await seedContacts();
-	const vehicles = await seedVehicles(ownerIds);
+	const vehicles = await seedVehicles();
 	const contracts = await seedRentalContracts(vehicles, contacts, ownerIds);
 	const payments = await seedPayments(contracts);
 	const incidents = await seedIncidents(vehicles, contracts, ownerIds);

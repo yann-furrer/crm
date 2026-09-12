@@ -18,7 +18,7 @@ import {
 	ActivityStampService,
 	type StampTargets,
 } from "../crm/activity-stamp.service";
-import { type BulkResult, requireOwner, runBulk } from "../crm/bulk";
+import { type BulkResult, runBulk } from "../crm/bulk";
 import { decimalFromCents, fromCents, parseDate, toCents } from "../crm/values";
 import { ConversionService } from "../currency/conversion.service";
 import { InjectDatabase } from "../database/database.constants";
@@ -26,27 +26,18 @@ import { FieldsService } from "../fields/fields.service";
 import {
 	countsByKey,
 	FACET_ALL,
-	FACET_UNASSIGNED,
 	type ListResult,
 	paginate,
 	resolveOrderBy,
 } from "../trpc/list-input";
 import type {
 	VehicleAvailabilityInput,
-	VehicleBulkOwnerInput,
 	VehicleBulkStatusInput,
 	VehicleCreateInput,
 	VehicleListInput,
 	VehicleSetFinancingInput,
 	VehicleUpdateInput,
 } from "./vehicles.contracts";
-
-const OWNER_SELECT = {
-	id: true,
-	name: true,
-	email: true,
-	image: true,
-} as const;
 
 const SORTABLE: Record<
 	string,
@@ -59,7 +50,6 @@ const SORTABLE: Record<
 	dailyRate: (dir) => [{ baseAmount: { sort: dir, nulls: "last" } }],
 	mileage: (dir) => [{ mileage: dir }],
 	createdAt: (dir) => [{ createdAt: dir }],
-	owner: (dir) => [{ owner: { name: dir } }, { plateNumber: "asc" }],
 	lastActivity: (dir) => [{ lastActivityAt: { sort: dir, nulls: "last" } }],
 };
 
@@ -98,7 +88,6 @@ export class VehiclesService {
 					currency: true,
 					baseAmount: true,
 					mileage: true,
-					owner: { select: OWNER_SELECT },
 					lastActivityAt: true,
 					createdAt: true,
 				},
@@ -160,7 +149,6 @@ export class VehiclesService {
 				nextMaintenanceAtKm: true,
 				nextMaintenanceAtDate: true,
 				photoUrls: true,
-				owner: { select: OWNER_SELECT },
 				createdAt: true,
 				financing: {
 					select: {
@@ -174,6 +162,15 @@ export class VehiclesService {
 						startDate: true,
 					},
 				},
+				mileageHistory: {
+					orderBy: { recordedAt: "asc" },
+					select: {
+						id: true,
+						mileage: true,
+						recordedAt: true,
+						contractId: true,
+					},
+				},
 			},
 		});
 
@@ -181,8 +178,15 @@ export class VehiclesService {
 			throw new NotFoundException(`No vehicle with id ${id}.`);
 		}
 
-		const { dailyRate, baseAmount, fxRate, fxRateAt, financing, ...rest } =
-			vehicle;
+		const {
+			dailyRate,
+			baseAmount,
+			fxRate,
+			fxRateAt,
+			financing,
+			mileageHistory,
+			...rest
+		} = vehicle;
 
 		return {
 			...rest,
@@ -198,6 +202,10 @@ export class VehiclesService {
 			nextMaintenanceAtDate:
 				vehicle.nextMaintenanceAtDate?.toISOString() ?? null,
 			createdAt: vehicle.createdAt.toISOString(),
+			mileageHistory: mileageHistory.map((entry) => ({
+				...entry,
+				recordedAt: entry.recordedAt.toISOString(),
+			})),
 			financing: financing
 				? {
 						type: financing.type,
@@ -287,7 +295,6 @@ export class VehiclesService {
 					plateNumber: input.plateNumber.trim(),
 					vin: input.vin ?? null,
 					color: input.color ?? null,
-					ownerId: input.ownerId,
 					dailyRate: fromCents(input.dailyRateCents),
 					currency,
 					...fx,
@@ -327,9 +334,6 @@ export class VehiclesService {
 		if (input.vin !== undefined) data.vin = input.vin;
 		if (input.color !== undefined) data.color = input.color;
 		if (input.status !== undefined) data.status = input.status;
-		if (input.ownerId !== undefined) {
-			data.owner = { connect: { id: input.ownerId } };
-		}
 		if (input.mileage !== undefined) data.mileage = input.mileage;
 		if (input.insurancePolicyNumber !== undefined) {
 			data.insurancePolicyNumber = input.insurancePolicyNumber;
@@ -424,29 +428,6 @@ export class VehiclesService {
 		return { id, plateNumber: deleted.plateNumber };
 	}
 
-	async bulkAssignOwner(input: VehicleBulkOwnerInput): Promise<BulkResult> {
-		await requireOwner(this.db, input.ownerId);
-
-		const ids = [...new Set(input.ids)];
-		const { count } = await this.db.vehicle.updateMany({
-			where: { id: { in: ids } },
-			data: { ownerId: input.ownerId },
-		});
-
-		this.logger.log({
-			message: "Vehicles reassigned",
-			count,
-			ownerId: input.ownerId,
-		});
-
-		return {
-			requested: ids.length,
-			succeeded: count,
-			failed: ids.length - count,
-			message: null,
-		};
-	}
-
 	async bulkSetStatus(input: VehicleBulkStatusInput): Promise<BulkResult> {
 		return runBulk(input.ids, (id) =>
 			this.db.vehicle.update({ where: { id }, data: { status: input.status } }),
@@ -516,11 +497,6 @@ export class VehiclesService {
 	private buildWhere(input: VehicleListInput): Prisma.VehicleWhereInput {
 		const where: Prisma.VehicleWhereInput = this.searchFilter(input.q);
 
-		if (input.owner !== FACET_ALL) {
-			where.ownerId =
-				input.owner === FACET_UNASSIGNED ? { in: [] } : input.owner;
-		}
-
 		if (input.status !== FACET_ALL) {
 			where.status = input.status as VehicleStatus;
 		}
@@ -535,12 +511,7 @@ export class VehiclesService {
 	private async facetCounts(input: VehicleListInput) {
 		const where = this.searchFilter(input.q);
 
-		const [owners, statuses, types] = await Promise.all([
-			this.db.vehicle.groupBy({
-				by: ["ownerId"],
-				where,
-				_count: { _all: true },
-			}),
+		const [statuses, types] = await Promise.all([
 			this.db.vehicle.groupBy({
 				by: ["status"],
 				where,
@@ -550,7 +521,6 @@ export class VehiclesService {
 		]);
 
 		return {
-			owner: countsByKey(owners, "ownerId", FACET_UNASSIGNED),
 			status: countsByKey(statuses, "status"),
 			type: countsByKey(types, "type"),
 		};
@@ -579,7 +549,9 @@ export class VehiclesService {
 			error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
 			(error.code === "P2003" || error.code === "P2025")
 		) {
-			return new BadRequestException("That owner does not exist any more.");
+			return new BadRequestException(
+				"That vehicle relation is no longer valid.",
+			);
 		}
 		return error;
 	}

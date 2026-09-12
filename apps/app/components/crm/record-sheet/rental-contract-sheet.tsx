@@ -2,12 +2,39 @@
 
 import Add from "@carbon/icons-react/es/Add";
 import Close from "@carbon/icons-react/es/Close";
+import Edit from "@carbon/icons-react/es/Edit";
+import OverflowMenuVertical from "@carbon/icons-react/es/OverflowMenuVertical";
+import TrashCan from "@carbon/icons-react/es/TrashCan";
 import UserMultiple from "@carbon/icons-react/es/UserMultiple";
 import Wallet from "@carbon/icons-react/es/Wallet";
 import Warning from "@carbon/icons-react/es/Warning";
 import { CURRENCIES, normalizeCurrency } from "@crm/db/currency";
 import type { FieldValueJson } from "@crm/db/fields";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@crm/ui/components/alert-dialog";
 import { Button } from "@crm/ui/components/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@crm/ui/components/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@crm/ui/components/dropdown-menu";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
 import { EntityLogo } from "@crm/ui/components/entity-logo";
 import { Field, FieldLabel } from "@crm/ui/components/field";
@@ -31,6 +58,7 @@ import {
 	TooltipTrigger,
 } from "@crm/ui/components/tooltip";
 import { formatMoney } from "@crm/ui/lib/format";
+import { cn } from "@crm/ui/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -77,47 +105,61 @@ const CURRENCY_OPTIONS = CURRENCIES.map((entry) => ({
 }));
 
 const FUEL_OPTIONS = [
-	{ value: "FULL", label: "Full" },
+	{ value: "FULL", label: "Plein" },
 	{ value: "THREE_QUARTER", label: "3/4" },
-	{ value: "HALF", label: "Half" },
+	{ value: "HALF", label: "Moitié" },
 	{ value: "QUARTER", label: "1/4" },
-	{ value: "EMPTY", label: "Empty" },
+	{ value: "EMPTY", label: "Vide" },
 ];
 
 const PAYMENT_TYPE_OPTIONS = [
-	{ value: "RENTAL_FEE", label: "Rental fee" },
-	{ value: "DEPOSIT", label: "Deposit" },
-	{ value: "DEPOSIT_REFUND", label: "Deposit refund" },
-	{ value: "EXTRA_FEE", label: "Extra fee" },
-	{ value: "PENALTY", label: "Penalty" },
-	{ value: "MAINTENANCE_CHARGE", label: "Maintenance charge" },
+	{ value: "RENTAL_FEE", label: "Location" },
+	{ value: "DEPOSIT", label: "Caution" },
+	{ value: "DEPOSIT_REFUND", label: "Remboursement de caution" },
+	{ value: "EXTRA_FEE", label: "Frais supplémentaires" },
+	{ value: "PENALTY", label: "Pénalité" },
+	{ value: "MAINTENANCE_CHARGE", label: "Frais d’entretien" },
 ];
 
 const PAYMENT_METHOD_OPTIONS = [
-	{ value: "CASH", label: "Cash" },
+	{ value: "CASH", label: "Espèces" },
 	{ value: "WAVE", label: "Wave" },
 	{ value: "ORANGE_MONEY", label: "Orange Money" },
-	{ value: "CARD", label: "Card" },
-	{ value: "BANK_TRANSFER", label: "Bank transfer" },
+	{ value: "CARD", label: "Carte bancaire" },
+	{ value: "BANK_TRANSFER", label: "Virement bancaire" },
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+	{ value: "PENDING", label: "En attente" },
+	{ value: "COMPLETED", label: "Encaissé" },
+	{ value: "FAILED", label: "Échoué" },
+	{ value: "REFUNDED", label: "Remboursé" },
 ];
 
 const DRIVER_COLUMNS = [
-	{ id: "name", header: "Name", width: "w-[36%]", className: "pl-5" },
-	{ id: "role", header: "Role", width: "w-[28%]" },
+	{ id: "name", header: "Nom", width: "w-[36%]", className: "pl-5" },
+	{ id: "role", header: "Rôle", width: "w-[28%]" },
 	{ id: "remove", srLabel: "Remove", width: "w-10" },
 ];
 
 const PAYMENT_COLUMNS = [
-	{ id: "type", header: "Type", width: "w-[22%]", className: "pl-5" },
-	{ id: "method", header: "Method", width: "w-[20%]" },
-	{ id: "amount", header: "Amount", width: "w-[18%]", align: "right" as const },
-	{ id: "when", header: "When", width: "w-[20%]" },
+	{ id: "type", header: "Type", width: "w-[20%]" },
+	{ id: "method", header: "Mode", width: "w-[18%]" },
+	{
+		id: "amount",
+		header: "Montant",
+		width: "w-[16%]",
+		align: "right" as const,
+	},
+	{ id: "when", header: "Date", width: "w-[18%]" },
+	{ id: "status", header: "Statut", width: "w-[18%]" },
+	{ id: "actions", srLabel: "Actions", width: "w-10" },
 ];
 
 const INCIDENT_COLUMNS = [
 	{ id: "type", header: "Type", width: "w-[16%]", className: "pl-5" },
 	{ id: "description", header: "Description", width: "w-[40%]" },
-	{ id: "insurance", header: "Insurance", width: "w-[18%]" },
+	{ id: "insurance", header: "Assurance", width: "w-[18%]" },
 ];
 
 const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -130,6 +172,33 @@ function depositTone(status: RentalContract["depositStatus"]) {
 	if (status === "RETURNED") return "success" as const;
 	if (status === "PARTIALLY_RETURNED") return "warning" as const;
 	if (status === "FORFEITED") return "error" as const;
+	return "neutral" as const;
+}
+
+function depositLabel(status: RentalContract["depositStatus"]) {
+	return {
+		HELD: "Retenue",
+		PARTIALLY_RETURNED: "Partiellement remboursée",
+		RETURNED: "Remboursée",
+		FORFEITED: "Perdue",
+	}[status];
+}
+
+function depositRetainedCents(contract: RentalContract): number {
+	if (contract.depositStatus === "HELD") return 0;
+	const due = contract.depositAmountCents ?? 0;
+	if (contract.depositReturnedAmountCents === null) return due;
+	return Math.max(0, due - contract.depositReturnedAmountCents);
+}
+
+function isOutgoingPayment(type: string): boolean {
+	return type === "DEPOSIT_REFUND";
+}
+
+function paymentStatusTone(status: string) {
+	if (status === "COMPLETED") return "success" as const;
+	if (status === "FAILED") return "error" as const;
+	if (status === "REFUNDED") return "info" as const;
 	return "neutral" as const;
 }
 
@@ -152,12 +221,12 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 		? [
 				{
 					value: "overview",
-					label: "Overview",
+					label: "Vue d’ensemble",
 					content: <ContractOverview contract={contract} />,
 				},
 				{
 					value: "drivers",
-					label: "Drivers",
+					label: "Conducteurs",
 					count: contract.drivers.length,
 					content: (
 						<ContractDrivers
@@ -170,8 +239,8 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 				},
 				{
 					value: "payments",
-					label: "Payments",
-					content: <ContractPayments contractId={contract.id} />,
+					label: "Paiements",
+					content: <ContractPayments contract={contract} />,
 				},
 				{
 					value: "incidents",
@@ -186,12 +255,12 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 				},
 				{
 					value: "inspections",
-					label: "Inspections",
+					label: "États des lieux",
 					content: <ContractInspections contract={contract} />,
 				},
 				{
 					value: "activity",
-					label: "Activity",
+					label: "Activité",
 					content: <Timeline anchor={{ rentalContractId: contract.id }} />,
 				},
 				{
@@ -243,7 +312,7 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 						<RecordActions
 							record={{ kind: "rentalContract", id: contract.id }}
 							name={`${contract.vehicle.make} ${contract.vehicle.model}`}
-							consequence="Its payments, incidents, inspections and agent conversations go too. The vehicle and the renter stay in the CRM."
+							consequence="Ses paiements, incidents, états des lieux et conversations sont également supprimés. Le véhicule et le client restent dans le CRM."
 						/>
 					</>
 				) : null
@@ -257,12 +326,10 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 								currency={contract.currency}
 							/>
 						</DetailSheetStat>
-						<DetailSheetStat label="Deposit">
+						<DetailSheetStat label="Caution">
 							<StatusIndicator
 								tone={depositTone(contract.depositStatus)}
-								label={contract.depositStatus
-									.replaceAll("_", " ")
-									.toLowerCase()}
+								label={depositLabel(contract.depositStatus)}
 							/>
 						</DetailSheetStat>
 						<DetailSheetStat label="Dates">
@@ -271,7 +338,7 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 								<LocalDay date={contract.endDate} />
 							</span>
 						</DetailSheetStat>
-						<DetailSheetStat label="Owner">
+						<DetailSheetStat label="Vendeur">
 							<OwnerCell owner={contract.owner} />
 						</DetailSheetStat>
 					</DetailSheetStats>
@@ -279,7 +346,7 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 			}
 			note={
 				contract?.isLate ? (
-					<StatusIndicator tone="error" label="Overdue" />
+					<StatusIndicator tone="error" label="En retard" />
 				) : null
 			}
 			tabs={tabs}
@@ -320,12 +387,12 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 
 	return (
 		<DetailSheetBody>
-			<DetailSheetSection title="Status">
+			<DetailSheetSection title="Statut">
 				<StatusStepper contractId={contract.id} status={contract.status} />
 
 				{contract.cancelledReason ? (
 					<DetailSheetProperties>
-						<DetailSheetProperty label="Cancelled">
+						<DetailSheetProperty label="Annulé le">
 							{contract.cancelledAt ? (
 								<LocalDateTime
 									date={contract.cancelledAt}
@@ -335,7 +402,7 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 								<EmptyCellValue />
 							)}
 						</DetailSheetProperty>
-						<DetailSheetProperty label="Reason" wide>
+						<DetailSheetProperty label="Motif" wide>
 							{contract.cancelledReason}
 						</DetailSheetProperty>
 					</DetailSheetProperties>
@@ -343,30 +410,46 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 			</DetailSheetSection>
 
 			<DetailSheetSection
-				title="Details"
+				title="Détails"
 				action={<FieldsCog kind="rentalContract" />}
 			>
 				<DetailSheetProperties>
 					<InlineDateField
-						label="Start date"
+						label="Date de départ"
 						value={contract.startDate}
 						saving={isSaving("startDate")}
 						onSave={(next) => next && save({ startDate: next })}
 					/>
 					<InlineDateField
-						label="End date"
+						label="Date de retour"
 						value={contract.endDate}
 						saving={isSaving("endDate")}
 						onSave={(next) => next && save({ endDate: next })}
 					/>
 					<InlineField
-						label="Price per day"
+						label="Heure de départ"
+						value={contract.pickupTime}
+						type="time"
+						placeholder="09:00"
+						saving={isSaving("pickupTime")}
+						onSave={(next) => save({ pickupTime: next || null })}
+					/>
+					<InlineField
+						label="Heure de retour"
+						value={contract.returnTime}
+						type="time"
+						placeholder="18:00"
+						saving={isSaving("returnTime")}
+						onSave={(next) => save({ returnTime: next || null })}
+					/>
+					<InlineField
+						label="Prix par jour"
 						value={String((contract.pricePerDayCents ?? 0) / 100)}
 						saving={isSaving("pricePerDayCents")}
 						onSave={(next) => {
 							const parsed = Number.parseFloat(next);
 							if (!Number.isFinite(parsed) || parsed < 0) {
-								toast.error("Price has to be a number.");
+								toast.error("Le prix doit être un nombre.");
 								return;
 							}
 							save({ pricePerDayCents: Math.round(parsed * 100) });
@@ -376,13 +459,13 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 						}
 					/>
 					<InlineSelectField
-						label="Currency"
+						label="Devise"
 						value={currency}
 						options={CURRENCY_OPTIONS}
 						onSave={(next) => save({ currency: next })}
 					/>
 					<InlineField
-						label="Mileage included / day"
+						label="Kilomètres inclus / jour"
 						value={
 							contract.mileageIncludedPerDay === null
 								? null
@@ -401,22 +484,58 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 				</DetailSheetProperties>
 			</DetailSheetSection>
 
-			<DetailSheetSection title="Deposit">
+			<DetailSheetSection title="Kilométrage supplémentaire">
 				<DetailSheetProperties>
-					<DetailSheetProperty label="Held">
+					<DetailSheetProperty label="Kilomètres inclus par jour">
+						{contract.mileageIncludedPerDay ?? "Aucun forfait"}
+					</DetailSheetProperty>
+					<DetailSheetProperty label="Montant calculé">
+						{contract.extraMileageAmountCents === null
+							? "À calculer à la restitution"
+							: formatMoney(contract.extraMileageAmountCents, currency)}
+					</DetailSheetProperty>
+				</DetailSheetProperties>
+				{contract.mileagePricingRules.length > 0 ? (
+					<SimpleTable
+						columns={[
+							{ id: "kilometers", header: "Tranche", width: "w-1/2" },
+							{ id: "price", header: "Prix / km", width: "w-1/2" },
+						]}
+					>
+						{contract.mileagePricingRules.map((rule) => (
+							<SimpleTableRow
+								key={`${contract.id}-mileage-rule-${rule.kilometers ?? "open"}-${rule.pricePerKmCents}`}
+							>
+								<TableCell>
+									{rule.kilometers === null
+										? "Puis suivants"
+										: `${rule.kilometers} km`}
+								</TableCell>
+								<TableCell>
+									{formatMoney(rule.pricePerKmCents, currency)}
+								</TableCell>
+							</SimpleTableRow>
+						))}
+					</SimpleTable>
+				) : null}
+			</DetailSheetSection>
+
+			<DetailSheetSection title="Caution">
+				<DetailSheetProperties>
+					<DetailSheetProperty label="Montant retenu">
 						{formatMoney(
 							contract.depositAmountCents ?? 0,
 							contract.depositCurrency,
 						)}
 					</DetailSheetProperty>
-					<DetailSheetProperty label="Method">
+					<DetailSheetProperty label="Mode">
 						{contract.depositMethod}
 					</DetailSheetProperty>
-					<DetailSheetProperty label="Status">
-						{contract.depositStatus}
+					<DetailSheetProperty label="Statut">
+						{depositLabel(contract.depositStatus)}
 					</DetailSheetProperty>
 					{contract.depositReturnedAmountCents !== null ? (
-						<DetailSheetProperty label="Returned">
+						<DetailSheetProperty label="Remboursé">
 							{formatMoney(
 								contract.depositReturnedAmountCents,
 								contract.depositCurrency,
@@ -445,7 +564,7 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 				<InlineTextArea
 					label="Notes"
 					value={contract.notes}
-					placeholder="Anything worth remembering about this rental."
+					placeholder="Ajoutez toute information utile concernant cette location."
 					saving={isSaving("notes")}
 					onSave={(notes) => save({ notes })}
 				/>
@@ -487,7 +606,7 @@ function DepositSettleForm({
 				onClick={() => {
 					const parsed = Number.parseFloat(amount);
 					if (!Number.isFinite(parsed) || parsed < 0) {
-						toast.error("Enter an amount.");
+						toast.error("Saisissez un montant.");
 						return;
 					}
 					const cents = Math.round(parsed * 100);
@@ -544,12 +663,12 @@ function ContractDrivers({
 				{adding ? null : (
 					<DetailSheetEmpty
 						icon={UserMultiple}
-						title="No drivers yet"
-						description="Add the renter and anyone else authorized to drive this vehicle."
+						title="Aucun conducteur"
+						description="Ajoutez le client et toute personne autorisée à conduire ce véhicule."
 						action={
 							<Button variant="outline" size="sm" onClick={onAdd}>
 								<Icon icon={Add} data-icon="inline-start" />
-								Add driver
+								Ajouter un conducteur
 							</Button>
 						}
 					/>
@@ -580,7 +699,7 @@ function ContractDrivers({
 							</span>
 						</TableCell>
 						<TableCell className="truncate px-3 py-2.5 text-muted-foreground">
-							{driver.role === "PRIMARY" ? "Renter" : "Additional driver"}
+							{driver.role === "PRIMARY" ? "Client" : "Conducteur additionnel"}
 						</TableCell>
 						<TableCell className="px-3 py-2.5">
 							{driver.role === "PRIMARY" ? null : (
@@ -612,7 +731,7 @@ function ContractDrivers({
 				))}
 
 				<AddRow
-					label="Add driver"
+					label="Ajouter un conducteur"
 					columns={DRIVER_COLUMNS.length}
 					onClick={onAdd}
 				/>
@@ -621,105 +740,220 @@ function ContractDrivers({
 	);
 }
 
-function ContractPayments({ contractId }: { contractId: string }) {
+function ContractPayments({ contract }: { contract: RentalContract }) {
 	const trpc = useTRPC();
 	const [adding, setAdding] = useState(false);
 
 	const payments = useQuery(
-		trpc.payments.listByContract.queryOptions({ rentalContractId: contractId }),
+		trpc.payments.listByContract.queryOptions({
+			rentalContractId: contract.id,
+		}),
 	);
 
 	const rows = payments.data ?? [];
+	const completedPayments = rows.filter(
+		(payment) => payment.status === "COMPLETED",
+	);
+	const rentalPaidCents = completedPayments
+		.filter(
+			(payment) =>
+				payment.type === "RENTAL_FEE" &&
+				normalizeCurrency(payment.currency) ===
+					normalizeCurrency(contract.currency),
+		)
+		.reduce((total, payment) => total + (payment.amountCents ?? 0), 0);
+	const depositPaidCents = completedPayments
+		.filter(
+			(payment) =>
+				payment.type === "DEPOSIT" &&
+				normalizeCurrency(payment.currency) ===
+					normalizeCurrency(contract.depositCurrency),
+		)
+		.reduce((total, payment) => total + (payment.amountCents ?? 0), 0);
+	const rentalDueCents = contract.totalAmountCents ?? 0;
+	const depositDueCents = contract.depositAmountCents ?? 0;
+	const rentalRemainingCents = Math.max(0, rentalDueCents - rentalPaidCents);
+	const depositRemainingCents = Math.max(0, depositDueCents - depositPaidCents);
+	const retainedCents = depositRetainedCents(contract);
 
 	const form = adding ? (
-		<PaymentForm contractId={contractId} onDone={() => setAdding(false)} />
+		<PaymentForm
+			key={`${contract.totalAmountCents}-${contract.depositAmountCents}`}
+			contract={contract}
+			onDone={() => setAdding(false)}
+		/>
 	) : null;
 
-	if (!payments.isPending && rows.length === 0) {
-		return (
-			<>
+	return (
+		<DetailSheetBody>
+			<DetailSheetSection title="Location">
+				<DetailSheetProperties>
+					<DetailSheetProperty label="Prévu">
+						{formatMoney(rentalDueCents, contract.currency)}
+					</DetailSheetProperty>
+					<DetailSheetProperty label="Encaissé">
+						{formatMoney(rentalPaidCents, contract.currency)}
+					</DetailSheetProperty>
+					<DetailSheetProperty label="Reste à payer" wide>
+						<StatusIndicator
+							tone={rentalRemainingCents > 0 ? "warning" : "success"}
+							label={
+								rentalRemainingCents > 0
+									? formatMoney(rentalRemainingCents, contract.currency)
+									: "Payé en totalité"
+							}
+						/>
+					</DetailSheetProperty>
+				</DetailSheetProperties>
+			</DetailSheetSection>
+
+			<DetailSheetSection title="Caution">
+				<DetailSheetProperties>
+					<DetailSheetProperty label="Prévue">
+						{formatMoney(depositDueCents, contract.depositCurrency)}
+					</DetailSheetProperty>
+					<DetailSheetProperty label="Encaissée">
+						{formatMoney(depositPaidCents, contract.depositCurrency)}
+					</DetailSheetProperty>
+					<DetailSheetProperty label="Reste à encaisser" wide>
+						<StatusIndicator
+							tone={depositRemainingCents > 0 ? "warning" : "success"}
+							label={
+								depositRemainingCents > 0
+									? formatMoney(depositRemainingCents, contract.depositCurrency)
+									: "Encaissée en totalité"
+							}
+						/>
+					</DetailSheetProperty>
+					<DetailSheetProperty label="Statut">
+						<StatusIndicator
+							tone={depositTone(contract.depositStatus)}
+							label={depositLabel(contract.depositStatus)}
+						/>
+					</DetailSheetProperty>
+					{retainedCents > 0 ? (
+						<DetailSheetProperty label="Retenue">
+							<StatusIndicator
+								tone="error"
+								label={formatMoney(retainedCents, contract.depositCurrency)}
+							/>
+						</DetailSheetProperty>
+					) : null}
+					{contract.depositReturnedAmountCents !== null ? (
+						<DetailSheetProperty label="Remboursée">
+							{formatMoney(
+								contract.depositReturnedAmountCents,
+								contract.depositCurrency,
+							)}
+						</DetailSheetProperty>
+					) : null}
+				</DetailSheetProperties>
+			</DetailSheetSection>
+
+			<DetailSheetSection title="Historique des paiements">
 				{form}
-				{adding ? null : (
+				{rows.length > 0 ? (
+					<SimpleTable columns={PAYMENT_COLUMNS}>
+						{rows.map((payment) => {
+							const outgoing = isOutgoingPayment(payment.type);
+							return (
+								<SimpleTableRow key={payment.id}>
+									<TableCell className="truncate font-medium">
+										{PAYMENT_TYPE_OPTIONS.find((o) => o.value === payment.type)
+											?.label ?? payment.type}
+									</TableCell>
+									<TableCell className="truncate text-muted-foreground">
+										{PAYMENT_METHOD_OPTIONS.find(
+											(o) => o.value === payment.method,
+										)?.label ?? payment.method}
+										{payment.reference ? ` · ${payment.reference}` : ""}
+									</TableCell>
+									<TableCell
+										className={cn(
+											"text-right tabular-nums",
+											outgoing && "text-muted-foreground",
+										)}
+									>
+										{formatMoney(
+											outgoing
+												? -(payment.amountCents ?? 0)
+												: (payment.amountCents ?? 0),
+											payment.currency,
+										)}
+									</TableCell>
+									<TableCell className="text-muted-foreground">
+										{payment.paidAt ? (
+											<LocalDay date={payment.paidAt} />
+										) : (
+											<EmptyCellValue />
+										)}
+									</TableCell>
+									<TableCell>
+										<StatusIndicator
+											tone={paymentStatusTone(payment.status)}
+											label={
+												PAYMENT_STATUS_OPTIONS.find(
+													(o) => o.value === payment.status,
+												)?.label ?? payment.status
+											}
+										/>
+									</TableCell>
+									<TableCell>
+										<PaymentRowActions
+											payment={payment}
+											contractId={contract.id}
+										/>
+									</TableCell>
+								</SimpleTableRow>
+							);
+						})}
+					</SimpleTable>
+				) : (
 					<DetailSheetEmpty
 						icon={Wallet}
-						title="No payments recorded"
-						description="Nothing has been paid on this contract yet."
-						action={
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => setAdding(true)}
-							>
-								<Icon icon={Add} data-icon="inline-start" />
-								Record payment
-							</Button>
-						}
+						title="Aucun paiement enregistré"
+						description="Aucun paiement n’a encore été enregistré pour ce contrat."
 					/>
 				)}
-			</>
-		);
-	}
-
-	return (
-		<>
-			{form}
-			<SimpleTable variant="panel" columns={PAYMENT_COLUMNS}>
-				{rows.map((payment) => (
-					<SimpleTableRow key={payment.id}>
-						<TableCell className="truncate py-2.5 pr-3 pl-5 font-medium">
-							{PAYMENT_TYPE_OPTIONS.find((o) => o.value === payment.type)
-								?.label ?? payment.type}
-						</TableCell>
-						<TableCell className="truncate px-3 py-2.5 text-muted-foreground">
-							{PAYMENT_METHOD_OPTIONS.find((o) => o.value === payment.method)
-								?.label ?? payment.method}
-							{payment.reference ? ` · ${payment.reference}` : ""}
-						</TableCell>
-						<TableCell className="px-3 py-2.5 text-right tabular-nums">
-							{formatMoney(payment.amountCents ?? 0, payment.currency)}
-						</TableCell>
-						<TableCell className="px-3 py-2.5 text-muted-foreground">
-							{payment.paidAt ? (
-								<LocalDay date={payment.paidAt} />
-							) : (
-								<EmptyCellValue />
-							)}
-						</TableCell>
-					</SimpleTableRow>
-				))}
-			</SimpleTable>
-			{adding ? null : (
-				<button
-					type="button"
-					onClick={() => setAdding(true)}
-					className="w-full border-t px-5 py-2 text-left text-muted-foreground text-sm hover:text-foreground"
-				>
-					Record payment
-				</button>
-			)}
-		</>
+				{adding ? null : (
+					<button
+						type="button"
+						onClick={() => setAdding(true)}
+						className="w-full border-t pt-2 text-left text-muted-foreground text-sm hover:text-foreground"
+					>
+						Enregistrer le paiement
+					</button>
+				)}
+			</DetailSheetSection>
+		</DetailSheetBody>
 	);
 }
 
 function PaymentForm({
-	contractId,
+	contract,
 	onDone,
 }: {
-	contractId: string;
+	contract: RentalContract;
 	onDone: () => void;
 }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
 	const [type, setType] = useState("RENTAL_FEE");
 	const [method, setMethod] = useState("CASH");
-	const [amount, setAmount] = useState("");
+	const [amount, setAmount] = useState(
+		String(
+			((type === "DEPOSIT"
+				? contract.depositAmountCents
+				: contract.totalAmountCents) ?? 0) / 100,
+		),
+	);
 	const amountId = useId();
 
 	const create = useMutation(
 		trpc.payments.create.mutationOptions({
 			onSuccess: async () => {
-				await cache.rentalContract(contractId);
-				toast.success("Payment recorded.");
+				await cache.rentalContract(contract.id);
+				toast.success("Paiement enregistré.");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),
@@ -728,26 +962,28 @@ function PaymentForm({
 
 	return (
 		<QuickAddForm
-			submitLabel="Record payment"
+			submitLabel="Enregistrer le paiement"
 			pending={create.isPending}
 			ready={amount.trim() !== ""}
 			onCancel={onDone}
 			onSubmit={() => {
 				const parsed = Number.parseFloat(amount);
 				if (!Number.isFinite(parsed) || parsed < 0) {
-					toast.error("Amount has to be a number.");
+					toast.error("Le montant doit être un nombre.");
 					return;
 				}
 				create.mutate({
-					rentalContractId: contractId,
+					rentalContractId: contract.id,
 					type: type as never,
 					method: method as never,
+					currency:
+						type === "DEPOSIT" ? contract.depositCurrency : contract.currency,
 					amountCents: Math.round(parsed * 100),
 				});
 			}}
 		>
 			<Field>
-				<FieldLabel htmlFor={amountId}>Amount</FieldLabel>
+				<FieldLabel htmlFor={amountId}>Montant</FieldLabel>
 				<Input
 					id={amountId}
 					autoFocus
@@ -759,7 +995,19 @@ function PaymentForm({
 			</Field>
 			<Field>
 				<FieldLabel>Type</FieldLabel>
-				<Select value={type} onValueChange={setType}>
+				<Select
+					value={type}
+					onValueChange={(next) => {
+						setType(next);
+						setAmount(
+							String(
+								((next === "DEPOSIT"
+									? contract.depositAmountCents
+									: contract.totalAmountCents) ?? 0) / 100,
+							),
+						);
+					}}
+				>
 					<SelectTrigger className="w-full">
 						<SelectValue />
 					</SelectTrigger>
@@ -773,7 +1021,7 @@ function PaymentForm({
 				</Select>
 			</Field>
 			<Field>
-				<FieldLabel>Method</FieldLabel>
+				<FieldLabel>Moyen de paiement</FieldLabel>
 				<Select value={method} onValueChange={setMethod}>
 					<SelectTrigger className="w-full">
 						<SelectValue />
@@ -788,6 +1036,215 @@ function PaymentForm({
 				</Select>
 			</Field>
 		</QuickAddForm>
+	);
+}
+
+type Payment = RouterOutputs["payments"]["listByContract"][number];
+
+function PaymentRowActions({
+	payment,
+	contractId,
+}: {
+	payment: Payment;
+	contractId: string;
+}) {
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+	const [editing, setEditing] = useState(false);
+	const [confirming, setConfirming] = useState(false);
+
+	const remove = useMutation(
+		trpc.payments.delete.mutationOptions({
+			onSuccess: async () => {
+				await cache.rentalContract(contractId);
+				toast.success("Paiement supprimé.");
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	return (
+		<>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						disabled={remove.isPending}
+						onClick={(event) => event.stopPropagation()}
+					>
+						<Icon icon={OverflowMenuVertical} />
+						<span className="sr-only">Actions du paiement</span>
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent
+					align="end"
+					className="min-w-44"
+					onClick={(event) => event.stopPropagation()}
+				>
+					<DropdownMenuItem onSelect={() => setEditing(true)}>
+						<Icon icon={Edit} />
+						Modifier
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						variant="destructive"
+						onSelect={() => setConfirming(true)}
+					>
+						<Icon icon={TrashCan} />
+						Supprimer
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+
+			<EditPaymentDialog
+				payment={payment}
+				contractId={contractId}
+				open={editing}
+				onOpenChange={setEditing}
+			/>
+
+			<AlertDialog open={confirming} onOpenChange={setConfirming}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Supprimer ce paiement ?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Cette action est définitive. Les montants encaissés pour ce
+							contrat seront recalculés.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Annuler</AlertDialogCancel>
+						<AlertDialogAction
+							variant="destructive"
+							disabled={remove.isPending}
+							onClick={() => remove.mutate({ id: payment.id })}
+						>
+							Supprimer
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</>
+	);
+}
+
+function EditPaymentDialog({
+	payment,
+	contractId,
+	open,
+	onOpenChange,
+}: {
+	payment: Payment;
+	contractId: string;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+	const [status, setStatus] = useState(payment.status);
+	const [reference, setReference] = useState(payment.reference ?? "");
+	const [paidAt, setPaidAt] = useState(
+		payment.paidAt ? payment.paidAt.slice(0, 10) : "",
+	);
+	const [notes, setNotes] = useState(payment.notes ?? "");
+	const referenceId = useId();
+	const paidAtId = useId();
+	const notesId = useId();
+
+	const update = useMutation(
+		trpc.payments.update.mutationOptions({
+			onSuccess: async () => {
+				await cache.rentalContract(contractId);
+				toast.success("Paiement mis à jour.");
+				onOpenChange(false);
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Modifier le paiement</DialogTitle>
+					<DialogDescription>
+						Le type, le montant et le moyen de paiement ne peuvent pas être
+						modifiés : supprimez ce paiement et enregistrez-en un nouveau si
+						l’un de ces éléments est erroné.
+					</DialogDescription>
+				</DialogHeader>
+
+				<div className="flex flex-col gap-4 px-4">
+					<Field>
+						<FieldLabel>Statut</FieldLabel>
+						<Select
+							value={status}
+							onValueChange={(next) => setStatus(next as typeof status)}
+						>
+							<SelectTrigger className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{PAYMENT_STATUS_OPTIONS.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={paidAtId}>Date</FieldLabel>
+						<Input
+							id={paidAtId}
+							type="date"
+							value={paidAt}
+							onChange={(event) => setPaidAt(event.target.value)}
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={referenceId}>Référence</FieldLabel>
+						<Input
+							id={referenceId}
+							value={reference}
+							onChange={(event) => setReference(event.target.value)}
+							autoComplete="off"
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={notesId}>Notes</FieldLabel>
+						<Textarea
+							id={notesId}
+							value={notes}
+							onChange={(event) => setNotes(event.target.value)}
+							rows={3}
+						/>
+					</Field>
+				</div>
+
+				<DialogFooter>
+					<Button
+						disabled={update.isPending}
+						onClick={() =>
+							update.mutate({
+								id: payment.id,
+								data: {
+									status,
+									reference: reference.trim() || null,
+									paidAt: paidAt || null,
+									notes: notes.trim() || null,
+								},
+							})
+						}
+					>
+						Enregistrer
+					</Button>
+					<Button variant="outline" onClick={() => onOpenChange(false)}>
+						Annuler
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -827,7 +1284,7 @@ function ContractIncidents({
 				{adding ? null : (
 					<DetailSheetEmpty
 						icon={Warning}
-						title="No incidents"
+						title="Aucun incident"
 						description="Nothing has been reported on this contract."
 						action={
 							<Button
@@ -836,7 +1293,7 @@ function ContractIncidents({
 								onClick={() => setAdding(true)}
 							>
 								<Icon icon={Add} data-icon="inline-start" />
-								Report incident
+								Signaler un incident
 							</Button>
 						}
 					/>
@@ -869,7 +1326,7 @@ function ContractIncidents({
 					onClick={() => setAdding(true)}
 					className="w-full border-t px-5 py-2 text-left text-muted-foreground text-sm hover:text-foreground"
 				>
-					Report incident
+					Signaler un incident
 				</button>
 			)}
 		</>
@@ -949,13 +1406,13 @@ function ContractIncidentForm({
 			cache.rentalContract(contractId),
 			cache.vehicle(vehicleId),
 		]);
-		toast.success("Incident reported.");
+		toast.success("Incident signalé.");
 		onDone();
 	};
 
 	return (
 		<QuickAddForm
-			submitLabel="Report incident"
+			submitLabel="Signaler l’incident"
 			pending={create.isPending}
 			ready={description.trim() !== ""}
 			onCancel={onDone}
@@ -972,20 +1429,20 @@ function ContractIncidentForm({
 				/>
 			</Field>
 			<Field>
-				<FieldLabel>Deposit outcome</FieldLabel>
+				<FieldLabel>Impact sur la caution</FieldLabel>
 				<Select value={depositOutcome} onValueChange={setDepositOutcome}>
 					<SelectTrigger className="w-full">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="NONE">No deposit deduction</SelectItem>
+						<SelectItem value="NONE">Aucune retenue</SelectItem>
 						<SelectItem value="PARTIAL">Partially forfeited</SelectItem>
 						<SelectItem value="FULL">Fully forfeited</SelectItem>
 					</SelectContent>
 				</Select>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor="deposit-deducted">Deposit deducted</FieldLabel>
+				<FieldLabel htmlFor="deposit-deducted">Montant retenu</FieldLabel>
 				<Input
 					id="deposit-deducted"
 					inputMode="decimal"
@@ -1013,9 +1470,9 @@ function ContractIncidentForm({
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="POLICE_REPORT">Police report</SelectItem>
-							<SelectItem value="INVOICE">Invoice</SelectItem>
-							<SelectItem value="OTHER">Other document</SelectItem>
+							<SelectItem value="POLICE_REPORT">Constat de police</SelectItem>
+							<SelectItem value="INVOICE">Facture</SelectItem>
+							<SelectItem value="OTHER">Autre document</SelectItem>
 						</SelectContent>
 					</Select>
 				</Field>
@@ -1023,7 +1480,9 @@ function ContractIncidentForm({
 			{documentType === "INVOICE" ? (
 				<>
 					<Field>
-						<FieldLabel htmlFor="invoice-amount">Invoice amount</FieldLabel>
+						<FieldLabel htmlFor="invoice-amount">
+							Montant de la facture
+						</FieldLabel>
 						<Input
 							id="invoice-amount"
 							inputMode="decimal"
@@ -1067,16 +1526,16 @@ function ContractInspections({ contract }: { contract: RentalContract }) {
 
 	return (
 		<DetailSheetBody>
-			<DetailSheetSection title="Check-out">
+			<DetailSheetSection title="Départ">
 				{checkOut ? (
 					<DetailSheetProperties>
-						<DetailSheetProperty label="Odometer">
+						<DetailSheetProperty label="Kilométrage">
 							{checkOut.odometer.toLocaleString()} km
 						</DetailSheetProperty>
-						<DetailSheetProperty label="Fuel">
+						<DetailSheetProperty label="Carburant">
 							{FUEL_OPTIONS.find((o) => o.value === checkOut.fuelLevel)?.label}
 						</DetailSheetProperty>
-						<DetailSheetProperty label="When">
+						<DetailSheetProperty label="Date">
 							<LocalDateTime
 								date={checkOut.inspectedAt}
 								options={DATE_OPTIONS}
@@ -1093,16 +1552,16 @@ function ContractInspections({ contract }: { contract: RentalContract }) {
 				)}
 			</DetailSheetSection>
 
-			<DetailSheetSection title="Check-in">
+			<DetailSheetSection title="Retour">
 				{checkIn ? (
 					<DetailSheetProperties>
-						<DetailSheetProperty label="Odometer">
+						<DetailSheetProperty label="Kilométrage">
 							{checkIn.odometer.toLocaleString()} km
 						</DetailSheetProperty>
-						<DetailSheetProperty label="Fuel">
+						<DetailSheetProperty label="Carburant">
 							{FUEL_OPTIONS.find((o) => o.value === checkIn.fuelLevel)?.label}
 						</DetailSheetProperty>
-						<DetailSheetProperty label="When">
+						<DetailSheetProperty label="Date">
 							<LocalDateTime
 								date={checkIn.inspectedAt}
 								options={DATE_OPTIONS}
@@ -1118,7 +1577,7 @@ function ContractInspections({ contract }: { contract: RentalContract }) {
 					<InspectionForm contract={contract} type="CHECK_IN" />
 				) : (
 					<p className="text-muted-foreground text-sm">
-						Record the check-out first.
+						Enregistrez d’abord le départ.
 					</p>
 				)}
 			</DetailSheetSection>
@@ -1154,7 +1613,7 @@ function InspectionForm({
 	return (
 		<div className="flex flex-wrap items-end gap-2">
 			<Field className="w-32">
-				<FieldLabel htmlFor={odometerId}>Odometer</FieldLabel>
+				<FieldLabel htmlFor={odometerId}>Kilométrage</FieldLabel>
 				<Input
 					id={odometerId}
 					value={odometer}
@@ -1163,7 +1622,7 @@ function InspectionForm({
 				/>
 			</Field>
 			<Field className="w-32">
-				<FieldLabel>Fuel</FieldLabel>
+				<FieldLabel>Carburant</FieldLabel>
 				<Select value={fuelLevel} onValueChange={setFuelLevel}>
 					<SelectTrigger className="w-full">
 						<SelectValue />
@@ -1190,7 +1649,9 @@ function InspectionForm({
 					})
 				}
 			>
-				{type === "CHECK_OUT" ? "Record pickup" : "Record return"}
+				{type === "CHECK_OUT"
+					? "Enregistrer le départ"
+					: "Enregistrer le retour"}
 			</Button>
 		</div>
 	);

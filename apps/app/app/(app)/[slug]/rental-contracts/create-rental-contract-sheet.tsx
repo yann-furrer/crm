@@ -35,11 +35,13 @@ import { useTRPC } from "@/lib/trpc/client";
 
 const UNSET = "";
 
+type MileageRuleForm = { id: string; kilometers: string; pricePerKm: string };
+
 function AddButton(props: ComponentProps<typeof Button>) {
 	return (
 		<Button {...props}>
 			<Icon icon={Add} data-icon="inline-start" />
-			New rental contract
+			Nouveau contrat de location
 		</Button>
 	);
 }
@@ -66,8 +68,17 @@ function CreateRentalContractForm() {
 	const [ownerId, setOwnerId] = useState(UNSET);
 	const [startDate, setStartDate] = useState("");
 	const [endDate, setEndDate] = useState("");
+	const [pickupTime, setPickupTime] = useState("09:00");
+	const [returnTime, setReturnTime] = useState("18:00");
 	const [pricePerDay, setPricePerDay] = useState("");
 	const [depositAmount, setDepositAmount] = useState("");
+	const [mileageIncludedPerDay, setMileageIncludedPerDay] = useState("");
+	const [mileageRules, setMileageRules] = useState<MileageRuleForm[]>([]);
+	const newMileageRule = () => ({
+		id: crypto.randomUUID(),
+		kilometers: "",
+		pricePerKm: "",
+	});
 
 	const pricePerDayId = useId();
 	const depositId = useId();
@@ -91,14 +102,18 @@ function CreateRentalContractForm() {
 		trpc.rentalContracts.create.mutationOptions({
 			onSuccess: async (contract) => {
 				await cache.rentalContract(contract.id);
-				toast.success("Rental contract created.");
+				toast.success("Contrat de location créé.");
 				await setOpen(null);
 				setVehicleId(UNSET);
 				setContactId(UNSET);
 				setStartDate("");
 				setEndDate("");
+				setPickupTime("09:00");
+				setReturnTime("18:00");
 				setPricePerDay("");
 				setDepositAmount("");
+				setMileageIncludedPerDay("");
+				setMileageRules([]);
 				openRecord({ kind: "rentalContract", id: contract.id });
 			},
 			onError: (error) => toast.error(error.message),
@@ -111,6 +126,8 @@ function CreateRentalContractForm() {
 		resolvedOwner !== UNSET &&
 		startDate !== "" &&
 		endDate !== "" &&
+		pickupTime !== "" &&
+		returnTime !== "" &&
 		pricePerDay.trim() !== "" &&
 		depositAmount.trim() !== "";
 
@@ -123,7 +140,7 @@ function CreateRentalContractForm() {
 				<SheetHeader>
 					<SheetTitle>Nouveau contrat de location</SheetTitle>
 					<SheetDescription>
-						Book a vehicle for a renter over a date range.
+						Réservez un véhicule pour un client sur une période donnée.
 					</SheetDescription>
 				</SheetHeader>
 
@@ -132,14 +149,52 @@ function CreateRentalContractForm() {
 					className="flex-1 overflow-y-auto px-4"
 					onSubmit={(event) => {
 						event.preventDefault();
-						const price = Number.parseFloat(pricePerDay);
-						const deposit = Number.parseFloat(depositAmount);
+						const price = Number.parseFloat(pricePerDay.replace(",", "."));
+						const deposit = Number.parseFloat(depositAmount.replace(",", "."));
 						if (!Number.isFinite(price) || price < 0) {
-							toast.error("Price per day has to be a number.");
+							toast.error("Le prix par jour doit être un nombre.");
 							return;
 						}
 						if (!Number.isFinite(deposit) || deposit < 0) {
-							toast.error("Deposit has to be a number.");
+							toast.error("La caution doit être un nombre.");
+							return;
+						}
+						const included = mileageIncludedPerDay
+							? Number.parseInt(mileageIncludedPerDay, 10)
+							: null;
+						if (
+							included !== null &&
+							(!Number.isInteger(included) || included < 0)
+						) {
+							toast.error(
+								"Le forfait kilométrique doit être un nombre entier.",
+							);
+							return;
+						}
+						const parsedRules = mileageRules.map((rule) => ({
+							kilometers: rule.kilometers.trim()
+								? Number.parseInt(rule.kilometers, 10)
+								: null,
+							pricePerKm: Number.parseFloat(rule.pricePerKm.replace(",", ".")),
+						}));
+						if (
+							parsedRules.some(
+								(rule) =>
+									(rule.kilometers !== null &&
+										(!Number.isInteger(rule.kilometers) ||
+											rule.kilometers <= 0)) ||
+									!Number.isFinite(rule.pricePerKm) ||
+									rule.pricePerKm < 0,
+							)
+						) {
+							toast.error("Vérifiez les tranches kilométriques.");
+							return;
+						}
+						if (
+							parsedRules.length > 0 &&
+							parsedRules[parsedRules.length - 1]?.kilometers !== null
+						) {
+							toast.error("La dernière tranche doit être sans limite.");
 							return;
 						}
 						create.mutate({
@@ -148,8 +203,15 @@ function CreateRentalContractForm() {
 							ownerId: resolvedOwner,
 							startDate,
 							endDate,
+							pickupTime,
+							returnTime,
 							pricePerDayCents: Math.round(price * 100),
 							depositAmountCents: Math.round(deposit * 100),
+							mileageIncludedPerDay: included,
+							mileagePricingRules: parsedRules.map((rule) => ({
+								kilometers: rule.kilometers,
+								pricePerKmCents: Math.round(rule.pricePerKm * 100),
+							})),
 						});
 					}}
 				>
@@ -167,10 +229,10 @@ function CreateRentalContractForm() {
 									<SelectValue
 										placeholder={
 											!dateRangeValid
-												? "Choose dates first"
+												? "Choisissez d’abord les dates"
 												: availability.isPending
 													? "Checking availability…"
-													: "Choose an available vehicle"
+													: "Choisir un véhicule disponible"
 										}
 									/>
 								</SelectTrigger>
@@ -185,8 +247,8 @@ function CreateRentalContractForm() {
 							{dateRangeValid && !availability.isPending ? (
 								<p className="text-muted-foreground text-xs">
 									{availableVehicles.length === 0
-										? "No vehicle is available for these dates."
-										: `${availableVehicles.length} vehicle${availableVehicles.length === 1 ? "" : "s"} available for this period.`}
+										? "Aucun véhicule n’est disponible à ces dates."
+										: `${availableVehicles.length} véhicule${availableVehicles.length === 1 ? "" : "s"} disponible${availableVehicles.length === 1 ? "" : "s"} pour cette période.`}
 								</p>
 							) : null}
 						</Field>
@@ -195,7 +257,7 @@ function CreateRentalContractForm() {
 							<FieldLabel htmlFor="create-contract-contact">Client</FieldLabel>
 							<Select value={contactId} onValueChange={setContactId}>
 								<SelectTrigger id="create-contract-contact">
-									<SelectValue placeholder="Choose a renter" />
+									<SelectValue placeholder="Choisir un client" />
 								</SelectTrigger>
 								<SelectContent>
 									{(contacts.data ?? []).map((contact) => (
@@ -211,7 +273,7 @@ function CreateRentalContractForm() {
 							<FieldLabel htmlFor="create-contract-owner">Vendeur</FieldLabel>
 							<Select value={resolvedOwner} onValueChange={setOwnerId}>
 								<SelectTrigger id="create-contract-owner">
-									<SelectValue placeholder="Choose an agent" />
+									<SelectValue placeholder="Choisir un vendeur" />
 								</SelectTrigger>
 								<SelectContent>
 									{(users.data ?? []).map((user) => (
@@ -225,7 +287,7 @@ function CreateRentalContractForm() {
 
 						<Field>
 							<FieldLabel htmlFor="create-contract-start">
-								Start date
+								Date de départ
 							</FieldLabel>
 							<DatePicker
 								id="create-contract-start"
@@ -234,7 +296,31 @@ function CreateRentalContractForm() {
 									setStartDate(value);
 									setVehicleId(UNSET);
 								}}
-								placeholder="Pickup date"
+								placeholder="Date de départ"
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor="create-contract-pickup-time">
+								Heure de départ
+							</FieldLabel>
+							<Input
+								id="create-contract-pickup-time"
+								type="time"
+								value={pickupTime}
+								onChange={(event) => setPickupTime(event.target.value)}
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel htmlFor="create-contract-return-time">
+								Heure de retour
+							</FieldLabel>
+							<Input
+								id="create-contract-return-time"
+								type="time"
+								value={returnTime}
+								onChange={(event) => setReturnTime(event.target.value)}
 							/>
 						</Field>
 
@@ -249,7 +335,7 @@ function CreateRentalContractForm() {
 									setEndDate(value);
 									setVehicleId(UNSET);
 								}}
-								placeholder="Return date"
+								placeholder="Date de retour"
 							/>
 						</Field>
 
@@ -276,6 +362,91 @@ function CreateRentalContractForm() {
 								autoComplete="off"
 							/>
 						</Field>
+
+						<Field>
+							<FieldLabel htmlFor="create-contract-mileage-included">
+								Kilomètres inclus par jour
+							</FieldLabel>
+							<Input
+								id="create-contract-mileage-included"
+								value={mileageIncludedPerDay}
+								onChange={(event) =>
+									setMileageIncludedPerDay(event.target.value)
+								}
+								placeholder="100"
+								inputMode="numeric"
+							/>
+						</Field>
+
+						<FieldGroup>
+							<div className="flex items-center justify-between">
+								<FieldLabel>
+									Tarification des kilomètres supplémentaires
+								</FieldLabel>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										setMileageRules((current) => [...current, newMileageRule()])
+									}
+								>
+									Ajouter une tranche
+								</Button>
+							</div>
+							{mileageRules.map((rule, index) => (
+								<div className="flex items-end gap-2" key={rule.id}>
+									<Field className="flex-1">
+										<FieldLabel>Km dans la tranche</FieldLabel>
+										<Input
+											value={rule.kilometers}
+											onChange={(event) =>
+												setMileageRules((current) =>
+													current.map((item, itemIndex) =>
+														itemIndex === index
+															? { ...item, kilometers: event.target.value }
+															: item,
+													),
+												)
+											}
+											placeholder={
+												index === mileageRules.length - 1 ? "Illimité" : "100"
+											}
+											inputMode="numeric"
+										/>
+									</Field>
+									<Field className="flex-1">
+										<FieldLabel>Prix / km</FieldLabel>
+										<Input
+											value={rule.pricePerKm}
+											onChange={(event) =>
+												setMileageRules((current) =>
+													current.map((item, itemIndex) =>
+														itemIndex === index
+															? { ...item, pricePerKm: event.target.value }
+															: item,
+													),
+												)
+											}
+											placeholder="0,30"
+											inputMode="decimal"
+										/>
+									</Field>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() =>
+											setMileageRules((current) =>
+												current.filter((_, itemIndex) => itemIndex !== index),
+											)
+										}
+									>
+										Supprimer
+									</Button>
+								</div>
+							))}
+						</FieldGroup>
 					</FieldGroup>
 				</form>
 
@@ -286,10 +457,10 @@ function CreateRentalContractForm() {
 						disabled={create.isPending || !ready}
 					>
 						{create.isPending ? <Spinner /> : null}
-						Create contract
+						Créer le contrat
 					</Button>
 					<SheetClose asChild>
-						<Button variant="outline">Cancel</Button>
+						<Button variant="outline">Annuler</Button>
 					</SheetClose>
 				</SheetFooter>
 			</SheetContent>

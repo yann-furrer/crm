@@ -1,19 +1,25 @@
 "use client";
 
+import GasStation from "@carbon/icons-react/es/GasStation";
+import GasStationEco from "@carbon/icons-react/es/GasStationEco";
+import Meter from "@carbon/icons-react/es/Meter";
 import {
 	DataTable,
 	type DataTableColumn,
 	type DataTableFacet,
 } from "@crm/ui/components/data-table";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
-import { StatusIndicator } from "@crm/ui/components/status-indicator";
+import {
+	IndicatorDot,
+	StatusIndicator,
+} from "@crm/ui/components/status-indicator";
 import { useTableSelection } from "@crm/ui/hooks/use-table-selection";
 import { formatMoney } from "@crm/ui/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { useFieldColumns } from "@/components/crm/fields/field-columns";
-import { OwnerCell } from "@/components/crm/owner-cell";
 import { usePrefetchRecord } from "@/components/crm/record-sheet/record-prefetch";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
 import { ListSearch } from "@/components/data-table/list-search";
@@ -132,16 +138,8 @@ const COLUMNS: DataTableColumn<VehicleRow>[] = [
 		),
 	},
 	{
-		id: "owner",
-		header: "Owner",
-		sortable: true,
-		width: "w-[14%]",
-		hideBelow: "md",
-		cell: (row) => <OwnerCell owner={row.owner} />,
-	},
-	{
 		id: "lastActivity",
-		header: "Last activity",
+		header: "Dernière activité",
 		sortable: true,
 		align: "right",
 		width: "w-[12%]",
@@ -160,52 +158,82 @@ const COLUMNS: DataTableColumn<VehicleRow>[] = [
 
 const PLACEHOLDER_PHOTO = "/2008-bugatti-veyron-side-right.webp";
 
-function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
+const FUEL_ICON: Record<string, typeof GasStation> = {
+	DIESEL: GasStation,
+	GASOLINE: GasStation,
+	ELECTRIC: GasStationEco,
+};
+
+function Pill({
+	icon: Icon,
+	children,
+}: {
+	icon?: typeof GasStation;
+	children: ReactNode;
+}) {
 	return (
-		<div className="flex h-full flex-col overflow-hidden rounded-lg border bg-card transition-colors hover:border-foreground/20">
-			<div className="relative h-28 shrink-0 border-b bg-muted">
+		<span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-sm bg-muted px-2 font-medium text-[11px] text-muted-foreground">
+			{Icon && <Icon size={11} className="shrink-0" />}
+			<span className="truncate">{children}</span>
+		</span>
+	);
+}
+
+function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
+	const FuelIcon = FUEL_ICON[vehicle.fuelType] ?? GasStation;
+
+	return (
+		<div className="relative flex h-full min-h-[380px] flex-col overflow-hidden rounded-sm border bg-card">
+			<div className="shrink-0 px-4 pt-2">
+				<div className="translate-x-5 font-bold text-md uppercase leading-tight tracking-tight">
+					{vehicle.make} {vehicle.model}
+				</div>
+				<div className="mt-0.5 text-muted-foreground text-xs">
+					{TYPE_LABEL[vehicle.type] ?? vehicle.type}
+				</div>
+				<div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+					<Pill icon={FuelIcon}>
+						{FUEL_LABEL[vehicle.fuelType] ?? vehicle.fuelType}
+					</Pill>
+					<Pill icon={Meter}>{vehicle.mileage.toLocaleString()} km</Pill>
+				</div>
+			</div>
+
+			<div className="relative min-h-[180px] flex-1 overflow-hidden">
+				<div
+					aria-hidden
+					className="absolute inset-x-0 bottom-16 mx-auto h-3 w-2/3 rounded-full bg-black/25 blur-md"
+				/>
 				<Image
 					src={PLACEHOLDER_PHOTO}
 					alt={`${vehicle.make} ${vehicle.model}`}
 					fill
-					className="object-contain p-2"
-				/>
-				<StatusIndicator
-					tone={STATUS_TONE[vehicle.status] ?? "neutral"}
-					label={STATUS_LABEL[vehicle.status] ?? vehicle.status}
-					size="sm"
-					className="absolute top-2 right-2 rounded-sm border bg-background px-1.5 py-1"
+					className="scale-90 object-contain p-3"
 				/>
 			</div>
-			<div className="flex flex-1 flex-col gap-2.5 p-3">
-				<div className="min-w-0">
-					<div className="truncate font-semibold text-base leading-tight">
-						{vehicle.make} {vehicle.model}
-					</div>
-					<div className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
-						<span className="shrink-0 rounded-sm border px-1 py-0.5 font-mono text-foreground tabular-nums">
-							{vehicle.plateNumber}
-						</span>
-						<span className="truncate">
-							{TYPE_LABEL[vehicle.type] ?? vehicle.type} ·{" "}
-							{FUEL_LABEL[vehicle.fuelType] ?? vehicle.fuelType}
-						</span>
-					</div>
+
+			<div className="shrink-0 px-4 pb-4">
+				<div className="mb-1.5 flex items-center gap-1.5">
+					<IndicatorDot
+						tone={STATUS_TONE[vehicle.status] ?? "neutral"}
+						className="size-1.5 shrink-0"
+						bloom="low"
+					/>
+					<span className="text-xs">
+						{STATUS_LABEL[vehicle.status] ?? vehicle.status}
+					</span>
 				</div>
-				<div className="mt-auto flex items-end justify-between gap-2 border-t pt-2.5">
-					<OwnerCell owner={vehicle.owner} compact />
-					<div className="text-right">
-						{vehicle.dailyRateCents === null ? (
-							<EmptyCellValue />
-						) : (
-							<>
-								<span className="font-semibold tabular-nums">
-									{formatMoney(vehicle.dailyRateCents, vehicle.currency)}
-								</span>
-								<span className="text-muted-foreground text-xs"> /day</span>
-							</>
-						)}
-					</div>
+				<div>
+					{vehicle.dailyRateCents === null ? (
+						<EmptyCellValue />
+					) : (
+						<>
+							<span className="font-bold text-xl tabular-nums">
+								{formatMoney(vehicle.dailyRateCents, vehicle.currency)}
+							</span>
+							<span className="ml-1 text-muted-foreground text-xs">/day</span>
+						</>
+					)}
 				</div>
 			</div>
 		</div>
@@ -222,8 +250,6 @@ export function VehiclesTable() {
 		...trpc.vehicles.list.queryOptions(input),
 		placeholderData: (previous) => previous,
 	});
-	const users = useQuery(trpc.users.list.queryOptions());
-
 	const rows = vehicles.data?.rows ?? [];
 	const selection = useTableSelection(
 		useMemo(() => rows.map((row) => row.id), [rows]),
@@ -232,15 +258,6 @@ export function VehiclesTable() {
 	const facetCounts = vehicles.data?.facetCounts;
 
 	const facets: DataTableFacet[] = [
-		{
-			id: "owner",
-			label: "Owner",
-			options: (users.data ?? []).flatMap((user) =>
-				(facetCounts?.owner?.[user.id] ?? 0) > 0
-					? [{ value: user.id, label: user.name }]
-					: [],
-			),
-		},
 		{
 			id: "status",
 			label: "Status",

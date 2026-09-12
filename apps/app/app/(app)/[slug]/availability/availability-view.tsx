@@ -40,7 +40,6 @@ export function AvailabilityView() {
 			pageSize: 100,
 			status: "all",
 			type: "all",
-			owner: "all",
 		}),
 	);
 	const availability = useQuery({

@@ -21,6 +21,7 @@ import {
 	rentalContractDriversInput,
 	rentalContractIdInput,
 	rentalContractListInput,
+	rentalContractPlanningInput,
 	rentalContractUpdateArgs,
 	setDepositStatusInput,
 	setDriverRoleInput,
@@ -44,6 +45,11 @@ export class RentalContractsRouter {
 	@Query({ input: rentalContractIdInput })
 	async byId(@Input("id") id: string) {
 		return this.rentalContracts.byId(id);
+	}
+
+	@Query({ input: rentalContractPlanningInput })
+	async planning(@Input() input: z.infer<typeof rentalContractPlanningInput>) {
+		return this.rentalContracts.planning(input);
 	}
 
 	@Mutation({ input: rentalContractCreateInput })

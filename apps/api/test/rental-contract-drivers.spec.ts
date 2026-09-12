@@ -50,7 +50,6 @@ beforeAll(async () => {
 			make: "Toyota",
 			model: "Corolla",
 			plateNumber,
-			ownerId: userId,
 		},
 		select: { id: true },
 	});

@@ -170,7 +170,7 @@ export function TeamAgentDetail({
 			<PageShell>
 				<PageShellHeader>
 					<PageShellHeading>
-						<PageShellTitle>Agent unavailable</PageShellTitle>
+						<PageShellTitle>Agent indisponible</PageShellTitle>
 						<PageShellDescription>{agent.error.message}</PageShellDescription>
 					</PageShellHeading>
 				</PageShellHeader>
@@ -868,10 +868,10 @@ function AgentActivity({ activity }: { activity: Activity }) {
 
 			<div className="min-w-0 overflow-hidden rounded-lg border bg-card">
 				<div className="hidden h-9 items-center border-b bg-background px-5 text-muted-foreground text-xs sm:flex">
-					<span className="w-[166px] shrink-0">Time</span>
-					<span className="min-w-0 flex-1">Change</span>
-					<span className="w-[140px] shrink-0">Actor</span>
-					<span className="w-[118px] shrink-0 text-right">Request</span>
+					<span className="w-[166px] shrink-0">Date</span>
+					<span className="min-w-0 flex-1">Modification</span>
+					<span className="w-[140px] shrink-0">Auteur</span>
+					<span className="w-[118px] shrink-0 text-right">Requête</span>
 				</div>
 				{visible.map((event) => (
 					<div
@@ -892,11 +892,11 @@ function AgentActivity({ activity }: { activity: Activity }) {
 							) : null}
 						</span>
 						<span className="min-w-0 wrap-break-word text-xs sm:w-[140px] sm:shrink-0 sm:text-sm">
-							<span className="text-muted-foreground sm:hidden">Actor · </span>
+							<span className="text-muted-foreground sm:hidden">Auteur · </span>
 							{event.actorUser?.name ?? event.actorId ?? event.actorType}
 						</span>
 						<span className="min-w-0 wrap-break-word font-mono text-muted-foreground text-xs sm:w-[118px] sm:shrink-0 sm:text-right">
-							<span className="font-sans sm:hidden">Request · </span>
+							<span className="font-sans sm:hidden">Requête · </span>
 							{event.requestId?.slice(0, 12) ?? "—"}
 						</span>
 					</div>

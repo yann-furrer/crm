@@ -36,6 +36,7 @@ const SELECT = {
 	reportedAt: true,
 	reportedBy: { select: REPORTED_BY_SELECT },
 	description: true,
+	damageAreas: true,
 	responsibleParty: true,
 	insuranceClaimNumber: true,
 	insuranceStatus: true,
@@ -154,6 +155,7 @@ export class IncidentsService {
 						reportedAt: parseDate(input.reportedAt) ?? new Date(),
 						reportedById,
 						description: input.description.trim(),
+						damageAreas: input.damageAreas ?? [],
 						responsibleParty:
 							input.responsibleParty ?? ResponsibleParty.UNKNOWN,
 						insuranceClaimNumber: input.insuranceClaimNumber ?? null,
@@ -212,6 +214,8 @@ export class IncidentsService {
 			return await this.db.incident.update({
 				where: { id },
 				data: {
+					description: input.description,
+					damageAreas: input.damageAreas,
 					responsibleParty: input.responsibleParty,
 					insuranceClaimNumber: input.insuranceClaimNumber,
 					insuranceStatus: input.insuranceStatus,

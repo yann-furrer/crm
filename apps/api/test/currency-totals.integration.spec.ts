@@ -77,7 +77,6 @@ async function makeVehicle(): Promise<string> {
 			make: "Money",
 			model: "Test",
 			plateNumber: `${platePrefix}-${vehicleCounter}`,
-			ownerId: userId,
 		},
 		select: { id: true },
 	});

@@ -78,7 +78,7 @@ export function AttachDriver({
 			onSubmit={() => attach.mutate({ contractId, contactId, role })}
 		>
 			<Field>
-				<FieldLabel htmlFor={personId}>Person</FieldLabel>
+				<FieldLabel htmlFor={personId}>Client</FieldLabel>
 				<Select value={contactId} onValueChange={setContactId}>
 					<SelectTrigger id={personId} className="w-full" disabled={nobody}>
 						<SelectValue placeholder={placeholder} />
@@ -93,7 +93,7 @@ export function AttachDriver({
 				</Select>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor={roleId}>Role</FieldLabel>
+				<FieldLabel htmlFor={roleId}>Rôle</FieldLabel>
 				<Select
 					value={role}
 					onValueChange={(next) => setRole(next as DriverRole)}

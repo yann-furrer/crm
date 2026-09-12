@@ -167,7 +167,7 @@ export class DashboardService {
 				_sum: { baseAmount: true },
 			}),
 			this.db.vehicle.count({
-				where: { ...owned, status: VehicleStatus.AVAILABLE },
+				where: { status: VehicleStatus.AVAILABLE },
 			}),
 			this.db.rentalContract.aggregate({
 				where: {

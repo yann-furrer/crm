@@ -23,15 +23,13 @@ import {
 	SheetTrigger,
 } from "@crm/ui/components/sheet";
 import { Spinner } from "@crm/ui/components/spinner";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { parseAsBoolean, useQueryState } from "nuqs";
 import { type ComponentProps, Suspense, useId, useState } from "react";
 import { toast } from "sonner";
 import { useOpenRecord } from "@/components/crm/record-sheet/record-stack";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
-
-const UNSET = "";
 
 const TYPE_OPTIONS = [
 	{ value: "CAR", label: "Car" },
@@ -78,18 +76,12 @@ function CreateVehicleForm() {
 	const [make, setMake] = useState("");
 	const [model, setModel] = useState("");
 	const [plateNumber, setPlateNumber] = useState("");
-	const [ownerId, setOwnerId] = useState(UNSET);
 	const [dailyRate, setDailyRate] = useState("");
 
 	const makeId = useId();
 	const modelId = useId();
 	const plateId = useId();
 	const rateId = useId();
-
-	const users = useQuery(trpc.users.list.queryOptions());
-	const me = useQuery(trpc.users.me.queryOptions());
-
-	const resolvedOwner = ownerId || me.data?.id || UNSET;
 
 	const create = useMutation(
 		trpc.vehicles.create.mutationOptions({
@@ -108,10 +100,7 @@ function CreateVehicleForm() {
 	);
 
 	const ready =
-		make.trim() !== "" &&
-		model.trim() !== "" &&
-		plateNumber.trim() !== "" &&
-		resolvedOwner !== UNSET;
+		make.trim() !== "" && model.trim() !== "" && plateNumber.trim() !== "";
 
 	return (
 		<Sheet open={open} onOpenChange={(next) => setOpen(next || null)}>
@@ -138,7 +127,6 @@ function CreateVehicleForm() {
 							make,
 							model,
 							plateNumber,
-							ownerId: resolvedOwner,
 							dailyRateCents: Number.isFinite(parsed)
 								? Math.round(parsed * 100)
 								: null,
@@ -215,24 +203,6 @@ function CreateVehicleForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor="create-vehicle-owner">
-								Fleet manager
-							</FieldLabel>
-							<Select value={resolvedOwner} onValueChange={setOwnerId}>
-								<SelectTrigger id="create-vehicle-owner">
-									<SelectValue placeholder="Choose an owner" />
-								</SelectTrigger>
-								<SelectContent>
-									{(users.data ?? []).map((user) => (
-										<SelectItem key={user.id} value={user.id}>
-											{user.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-
-						<Field>
 							<FieldLabel htmlFor={rateId}>Tarif journalier</FieldLabel>
 							<Input
 								id={rateId}
@@ -256,7 +226,7 @@ function CreateVehicleForm() {
 						Add vehicle
 					</Button>
 					<SheetClose asChild>
-						<Button variant="outline">Cancel</Button>
+						<Button variant="outline">Annuler</Button>
 					</SheetClose>
 				</SheetFooter>
 			</SheetContent>

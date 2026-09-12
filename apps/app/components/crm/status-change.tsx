@@ -138,7 +138,7 @@ export function CancelReasonDialog() {
 		<Dialog open={open} onOpenChange={(next) => !next && close()}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Cancel this contract</DialogTitle>
+					<DialogTitle>Annuler ce contrat</DialogTitle>
 					<DialogDescription>
 						Why is it being cancelled? It helps if a deposit dispute comes up
 						later.
@@ -159,7 +159,7 @@ export function CancelReasonDialog() {
 					}}
 				>
 					<Field>
-						<FieldLabel htmlFor={reasonId}>Reason</FieldLabel>
+						<FieldLabel htmlFor={reasonId}>Motif</FieldLabel>
 						<Textarea
 							id={reasonId}
 							value={reason}

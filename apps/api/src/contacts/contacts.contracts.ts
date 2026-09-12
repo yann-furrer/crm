@@ -1,3 +1,4 @@
+import { ContactDocumentType, ContactGender } from "@crm/db";
 import { z } from "zod";
 import { bulkIdsInput } from "../crm/bulk";
 import { recordFieldValues } from "../fields/fields.contracts";
@@ -9,6 +10,10 @@ export const contactListInput = listInput.extend({
 
 export type ContactListInput = z.infer<typeof contactListInput>;
 
+const genderEnum = z.enum(
+	Object.values(ContactGender) as [ContactGender, ...ContactGender[]],
+);
+
 export const contactOptionsInput = z.object({
 	q: z.string().default(""),
 });
@@ -16,6 +21,7 @@ export const contactOptionsInput = z.object({
 export const contactCreateInput = z.object({
 	firstName: z.string().trim().min(1, "A contact needs a first name."),
 	lastName: z.string().trim().optional(),
+	gender: genderEnum.optional(),
 	email: z.email("That is not an email address.").optional().or(z.literal("")),
 	phone: z.string().trim().optional(),
 	title: z.string().trim().optional(),
@@ -26,6 +32,7 @@ export type ContactCreateInput = z.infer<typeof contactCreateInput>;
 const contactUpdateInput = z.object({
 	firstName: z.string().trim().min(1).optional(),
 	lastName: z.string().optional(),
+	gender: genderEnum.optional(),
 	email: z.string().optional(),
 	phone: z.string().optional(),
 	title: z.string().optional(),
@@ -52,3 +59,25 @@ export const factDecisionInput = z.object({
 });
 
 export type FactDecisionInput = z.infer<typeof factDecisionInput>;
+
+const contactDocumentTypeEnum = z.enum(
+	Object.values(ContactDocumentType) as [
+		ContactDocumentType,
+		...ContactDocumentType[],
+	],
+);
+
+export const contactDocumentUploadInput = z.object({
+	type: contactDocumentTypeEnum,
+});
+
+export type ContactDocumentUploadInput = z.infer<
+	typeof contactDocumentUploadInput
+>;
+
+export const contactDocumentIdInput = z.object({
+	contactId: z.string(),
+	documentId: z.string(),
+});
+
+export type ContactDocumentIdInput = z.infer<typeof contactDocumentIdInput>;

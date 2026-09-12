@@ -399,7 +399,9 @@ export function GoogleConnection({ connectError }: { connectError?: string }) {
 
 							<AlertDialogContent>
 								<AlertDialogHeader>
-									<AlertDialogTitle>Delete synced data?</AlertDialogTitle>
+									<AlertDialogTitle>
+										Supprimer les données synchronisées ?
+									</AlertDialogTitle>
 									<AlertDialogDescription>
 										Every email and meeting brought in from Google is removed
 										from the CRM. The next check starts from now, so nothing
@@ -408,7 +410,7 @@ export function GoogleConnection({ connectError }: { connectError?: string }) {
 								</AlertDialogHeader>
 
 								<AlertDialogFooter>
-									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogCancel>Annuler</AlertDialogCancel>
 									<AlertDialogAction
 										variant="destructive"
 										onClick={() => purge.mutate()}
@@ -437,7 +439,7 @@ export function GoogleConnection({ connectError }: { connectError?: string }) {
 								</AlertDialogHeader>
 
 								<AlertDialogFooter>
-									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogCancel>Annuler</AlertDialogCancel>
 									<AlertDialogAction
 										variant="destructive"
 										onClick={() => revoke.mutate()}

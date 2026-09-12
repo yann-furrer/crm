@@ -35,7 +35,7 @@ const CHANNEL_LABEL: Record<string, string> = {
 const COLUMNS: DataTableColumn<ContractRow>[] = [
 	{
 		id: "vehicle",
-		header: "Vehicle",
+		header: "Véhicule",
 		sortable: true,
 		hideable: false,
 		width: "w-[18%]",
@@ -53,21 +53,21 @@ const COLUMNS: DataTableColumn<ContractRow>[] = [
 	},
 	{
 		id: "contact",
-		header: "Renter",
+		header: "Client",
 		sortable: true,
 		width: "w-[16%]",
 		cell: (row) => <span className="truncate">{contactName(row.contact)}</span>,
 	},
 	{
 		id: "status",
-		header: "Status",
+		header: "Statut",
 		sortable: true,
 		width: "w-[14%]",
 		cell: (row) => (
 			<span className="flex items-center gap-2">
 				<RentalStatusIndicator status={row.status} />
 				{row.isLate ? (
-					<span className="text-destructive text-xs">Overdue</span>
+					<span className="text-destructive text-xs">En retard</span>
 				) : null}
 			</span>
 		),
@@ -86,7 +86,7 @@ const COLUMNS: DataTableColumn<ContractRow>[] = [
 	},
 	{
 		id: "amount",
-		header: "Amount",
+		header: "Montant",
 		sortable: true,
 		align: "right",
 		width: "w-[12%]",
@@ -102,7 +102,7 @@ const COLUMNS: DataTableColumn<ContractRow>[] = [
 	},
 	{
 		id: "owner",
-		header: "Owner",
+		header: "Vendeur",
 		sortable: true,
 		width: "w-[12%]",
 		hideBelow: "md",
@@ -110,7 +110,7 @@ const COLUMNS: DataTableColumn<ContractRow>[] = [
 	},
 	{
 		id: "lastActivity",
-		header: "Last activity",
+		header: "Dernière activité",
 		sortable: true,
 		align: "right",
 		width: "w-[10%]",
@@ -149,7 +149,7 @@ export function RentalContractsTable() {
 	const facets: DataTableFacet[] = [
 		{
 			id: "owner",
-			label: "Owner",
+			label: "Vendeur",
 			options: (users.data ?? []).flatMap((user) =>
 				(facetCounts?.owner?.[user.id] ?? 0) > 0
 					? [{ value: user.id, label: user.name }]
@@ -158,14 +158,14 @@ export function RentalContractsTable() {
 		},
 		{
 			id: "status",
-			label: "Status",
+			label: "Statut",
 			options: RENTAL_STATUS_OPTIONS.filter(
 				(option) => (facetCounts?.status?.[option.value] ?? 0) > 0,
 			),
 		},
 		{
 			id: "channel",
-			label: "Channel",
+			label: "Canal",
 			options: Object.entries(CHANNEL_LABEL).flatMap(([value, label]) =>
 				(facetCounts?.channel?.[value] ?? 0) > 0 ? [{ value, label }] : [],
 			),
@@ -180,7 +180,7 @@ export function RentalContractsTable() {
 	return (
 		<DataTable
 			query={query}
-			search={<ListSearch placeholder="Search by vehicle or renter…" />}
+			search={<ListSearch placeholder="Rechercher un véhicule ou un client…" />}
 			columns={columns}
 			rows={rows}
 			total={contracts.data?.total ?? 0}
@@ -202,12 +202,13 @@ export function RentalContractsTable() {
 				prefetchRecord({ kind: "rentalContract", id: row.id })
 			}
 			onRowClick={(row) => openRecord({ kind: "rentalContract", id: row.id })}
-			empty="No rental contracts match this view."
+			empty="Aucun contrat de location ne correspond à cette vue."
 			meta={
 				unconverted && unconverted.count > 0 ? (
 					<span className="text-muted-foreground">
-						{contracts.data?.total ?? 0} contracts · {unconverted.count} not
-						counted (no {unconverted.currencies.join(", ")} rate)
+						{contracts.data?.total ?? 0} contrats · {unconverted.count} non
+						comptabilisé(s) (aucun taux pour {unconverted.currencies.join(", ")}
+						)
 					</span>
 				) : (
 					<span>{contracts.data?.total ?? 0} contracts</span>

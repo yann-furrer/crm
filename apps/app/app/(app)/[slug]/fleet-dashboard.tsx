@@ -1,13 +1,9 @@
 "use client";
 
-import {
-	Card,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@crm/ui/components/card";
+import { Button } from "@crm/ui/components/button";
 import type { ChartConfig } from "@crm/ui/components/chart";
 import {
+	ChartCard,
 	DashboardRow,
 	DashboardSection,
 	StatGroup,
@@ -21,7 +17,6 @@ import {
 } from "@crm/ui/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { AreaTrend, DonutStat } from "@/components/dashboard-charts";
 import { rentalStatusLabel } from "@/lib/rental-status";
 import { useTRPC } from "@/lib/trpc/client";
@@ -31,13 +26,8 @@ import { useWorkspaceUrl } from "@/lib/use-workspace-url";
 type Summary = RouterOutputs["dashboard"]["summary"];
 
 const TREND_CONFIG: ChartConfig = {
-	completed: { label: "Completed", color: "var(--success)" },
+	completed: { label: "Terminées", color: "var(--success)" },
 	created: { label: "Nouvelles réservations", color: "var(--chart-1)" },
-};
-
-const PROFITABILITY_TREND_CONFIG: ChartConfig = {
-	revenueCents: { label: "Revenue", color: "var(--success)" },
-	expensesCents: { label: "Expenses", color: "var(--chart-5)" },
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -60,20 +50,11 @@ function changeDelta(
 	};
 }
 
-export function FleetDashboard({ summary }: { summary: Summary }) {
+export function FleetDashboardOverview({ summary }: { summary: Summary }) {
 	const workspaceUrl = useWorkspaceUrl();
 
-	const {
-		fleet,
-		today,
-		completedThisMonth,
-		completedPrevMonth,
-		performance,
-		trend,
-		dueBackThisMonth,
-		reportingCurrency,
-		unconverted,
-	} = summary;
+	const { fleet, today, dueBackThisMonth, reportingCurrency, unconverted } =
+		summary;
 
 	const money = (cents: number) => formatMoneyCompact(cents, reportingCurrency);
 	const exact = (value: unknown) =>
@@ -81,10 +62,6 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 			typeof value === "number" ? value : Number(value),
 			reportingCurrency,
 		);
-
-	const hasTrend = trend.some(
-		(point) => point.completed > 0 || point.created > 0,
-	);
 
 	const statusSlices = fleet.statuses.flatMap((status) =>
 		status.valueCents > 0
@@ -102,175 +79,234 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 
 	return (
 		<div className="flex flex-col gap-6">
+			<ChartCard
+				className="min-w-0"
+				title="Valeur des contrats ouverts"
+				description={
+					fleet.totalContracts > 0
+						? `${formatCount(fleet.totalContracts, "contrat")} en cours · ${money(dueBackThisMonth.valueCents)} à récupérer ce mois-ci`
+						: "Réservations et locations actuellement en cours"
+				}
+				action={
+					<Button asChild variant="contrast" size="sm">
+						<Link href={workspaceUrl("/rental-contracts")}>
+							Voir les contrats
+						</Link>
+					</Button>
+				}
+			>
+				{statusSlices.length > 0 ? (
+					<div className="flex flex-1 flex-col gap-4 pt-4 lg:flex-row lg:items-center lg:gap-10 lg:px-5 lg:pt-0 md:lg:px-6">
+						<DonutStat
+							data={statusSlices}
+							height={200}
+							centerValue={money(fleet.totalCents)}
+							centerLabel="ouverts"
+							formatValue={exact}
+							className="lg:shrink-0"
+						/>
+						<ul className="flex min-w-0 flex-1 flex-col px-5 pb-1 md:px-6 lg:px-0 lg:pb-0">
+							{statusSlices.map((slice) => (
+								<li key={slice.key} className="border-t first:border-t-0">
+									<Link
+										href={`${workspaceUrl("/rental-contracts")}?status=${slice.key}`}
+										className="flex items-center gap-2.5 py-2.5 text-sm hover:underline"
+									>
+										<span
+											aria-hidden
+											className="size-1.5 shrink-0"
+											style={{ backgroundColor: slice.color }}
+										/>
+										<span className="min-w-0 flex-1 truncate">
+											{slice.label}
+										</span>
+										<span className="shrink-0 text-muted-foreground tabular-nums">
+											{slice.count}
+										</span>
+										<span className="w-16 shrink-0 text-right font-medium tabular-nums">
+											{money(slice.value)}
+										</span>
+									</Link>
+								</li>
+							))}
+						</ul>
+					</div>
+				) : (
+					<EmptyChart label="Aucun contrat actif" />
+				)}
+			</ChartCard>
+
 			<DashboardSection
-				title="Today"
-				description="Live snapshot of the fleet and cash flow"
+				title="Aujourd’hui"
+				description="La situation opérationnelle et financière de la flotte aujourd’hui"
 			>
 				<StatGroup>
 					<StatCard
 						label="Locations en cours"
-						value={formatCount(today.rentalsInProgress, "rental")}
-						description="Active contracts right now"
+						value={formatCount(today.rentalsInProgress, "location")}
+						description="Contrats actuellement en cours"
 					/>
 					<StatCard
-						label="Véhicules loués"
-						value={formatCount(today.vehiclesRented, "vehicle")}
-						description="Véhicules loués aujourd’hui"
+						label="Véhicules mobilisés"
+						value={formatCount(today.vehiclesRented, "véhicule")}
+						description="Réservés ou en location aujourd’hui"
 					/>
 					<StatCard
-						label="Returns due today"
-						value={formatCount(today.returnsDue, "return")}
+						label="Retours prévus aujourd’hui"
+						value={formatCount(today.returnsDue, "retour")}
 						description="Contrats dont le retour est prévu aujourd’hui"
 					/>
 					<StatCard
 						label="Véhicules disponibles"
-						value={formatCount(today.availableVehicles, "vehicle")}
-						description="Ready to be assigned to a new rental"
+						value={formatCount(today.availableVehicles, "véhicule")}
+						description="Prêts à être attribués"
 					/>
-				</StatGroup>
-				<StatGroup>
 					<StatCard
-						label="Value in progress"
+						label="Valeur des locations en cours"
 						value={money(today.valueInProgressCents)}
-						description="Open rental value scheduled for today"
+						description="Contrats réservés ou actifs aujourd’hui"
 					/>
 					<StatCard
-						label="Collected today"
+						label="Encaissements du jour"
 						value={money(today.paymentsCents)}
-						description="Completed payments recorded since midnight"
+						description="Paiements enregistrés depuis minuit"
 					/>
 				</StatGroup>
 			</DashboardSection>
 
-			<StatGroup>
-				<StatCard
-					label="Completed this month"
-					value={money(completedThisMonth.valueCents)}
-					delta={changeDelta(
-						completedThisMonth.valueCents,
-						completedPrevMonth.valueCents,
-						"vs. last month",
-					)}
-					description={`${formatCount(completedThisMonth.count, "contract")} · ${money(completedPrevMonth.valueCents)} last month`}
-				/>
-				<StatCard
-					label="Active fleet value"
-					value={money(fleet.totalCents)}
-					description={`${formatCount(fleet.totalContracts, "contract")} in progress · ${money(dueBackThisMonth.valueCents)} due back this month`}
-				/>
-				<StatCard
-					label={`Completion rate (${performance.windowDays}d)`}
-					value={
-						performance.completionRate === null
-							? "—"
-							: formatPercent(performance.completionRate)
-					}
-					description={
-						performance.completedCount + performance.cancelledCount === 0
-							? "Nothing has wrapped up yet"
-							: `${performance.completedCount} completed · ${performance.cancelledCount} cancelled`
-					}
-				/>
-				<StatCard
-					label={`Average contract (${performance.windowDays}d)`}
-					value={
-						performance.avgContractCents === null
-							? "—"
-							: money(performance.avgContractCents)
-					}
-					description={
-						performance.avgDurationDays === null
-							? "Aucun retour à mesurer"
-							: `${performance.avgDurationDays}-day average duration`
-					}
-				/>
-			</StatGroup>
-
 			{unconverted.count > 0 ? (
 				<p className="text-muted-foreground text-xs">
-					Every figure above is in {reportingCurrency}.{" "}
-					{formatCount(unconverted.count, "record")} in{" "}
+					Les montants ci-dessus sont exprimés en {reportingCurrency}.{" "}
+					{formatCount(unconverted.count, "enregistrement")} en{" "}
 					{unconverted.currencies.join(", ")}{" "}
-					{unconverted.count === 1 ? "is" : "are"} not included — there is no
-					rate to convert {unconverted.currencies.length === 1 ? "it" : "them"}{" "}
-					with.{" "}
+					{unconverted.count === 1 ? "n’est pas inclus" : "ne sont pas inclus"}{" "}
+					: aucun taux de conversion n’est disponible.{" "}
 					<Link
 						href={workspaceUrl("/settings/currencies")}
 						className="underline hover:no-underline"
 					>
-						Set one
+						Configurer un taux
 					</Link>
 					.
 				</p>
 			) : null}
+		</div>
+	);
+}
 
-			<DashboardRow split="hero">
-				<ChartPanel
-					title="Completed vs. new bookings"
-					description="Last six months, by the month a contract was returned or created"
-				>
-					{hasTrend ? (
-						<div className="flex flex-1 flex-col justify-center py-4">
-							<AreaTrend
-								data={trend}
-								config={TREND_CONFIG}
-								xKey="month"
-								height={196}
-								variant="gradient"
-								bloom="high"
-								showLegend
-								formatValue={exact}
+export function FleetDashboardTrends({ summary }: { summary: Summary }) {
+	const {
+		completedThisMonth,
+		completedPrevMonth,
+		performance,
+		trend,
+		dueBackThisMonth,
+		reportingCurrency,
+	} = summary;
+
+	const money = (cents: number) => formatMoneyCompact(cents, reportingCurrency);
+	const exact = (value: unknown) =>
+		formatMoney(
+			typeof value === "number" ? value : Number(value),
+			reportingCurrency,
+		);
+
+	const hasTrend = trend.some(
+		(point) => point.completed > 0 || point.created > 0,
+	);
+
+	return (
+		<div className="flex flex-col gap-6">
+			<DashboardSection
+				title="Ce mois-ci"
+				description="Contrats terminés, nouvelles réservations et retours attendus"
+			>
+				<DashboardRow split="hero">
+					<ChartCard
+						className="min-w-0"
+						title="Contrats terminés et nouvelles réservations"
+						description="Six derniers mois, selon le mois du retour ou de la création du contrat"
+					>
+						{hasTrend ? (
+							<div className="flex flex-1 flex-col justify-center py-4">
+								<AreaTrend
+									data={trend}
+									config={TREND_CONFIG}
+									xKey="month"
+									height={196}
+									variant="gradient"
+									bloom="high"
+									showLegend
+									formatValue={exact}
+								/>
+							</div>
+						) : (
+							<EmptyChart label="Aucun contrat terminé ou créé pour le moment" />
+						)}
+					</ChartCard>
+
+					<div className="flex min-w-0 flex-col gap-4">
+						<div className="border">
+							<StatCard
+								label="Contrats terminés ce mois-ci"
+								value={money(completedThisMonth.valueCents)}
+								delta={changeDelta(
+									completedThisMonth.valueCents,
+									completedPrevMonth.valueCents,
+									"vs mois dernier",
+								)}
+								description={`${formatCount(completedThisMonth.count, "contrat")} · ${money(completedPrevMonth.valueCents)} le mois dernier`}
 							/>
 						</div>
-					) : (
-						<EmptyChart label="Aucun contrat terminé ou créé pour le moment" />
-					)}
-				</ChartPanel>
-
-				<ChartPanel
-					title="Fleet value by status"
-					description="Where the value sits right now"
-				>
-					{statusSlices.length > 0 ? (
-						<div className="flex flex-1 flex-col justify-between gap-1 pt-4">
-							<DonutStat
-								data={statusSlices}
-								height={168}
-								centerValue={money(fleet.totalCents)}
-								centerLabel="active"
-								formatValue={exact}
+						<div className="border">
+							<StatCard
+								label="Retours prévus ce mois-ci"
+								value={formatCount(dueBackThisMonth.count, "retour")}
+								description={`${money(dueBackThisMonth.valueCents)} de valeur contractuelle`}
 							/>
-							<ul className="flex flex-col px-5 pb-1 md:px-6">
-								{statusSlices.map((slice) => (
-									<li key={slice.key} className="border-t first:border-t-0">
-										<Link
-											href={`${workspaceUrl("/rental-contracts")}?status=${slice.key}`}
-											className="flex items-center gap-2.5 py-2 text-xs hover:underline"
-										>
-											<span
-												aria-hidden
-												className="size-1.5 shrink-0"
-												style={{ backgroundColor: slice.color }}
-											/>
-											<span className="min-w-0 flex-1 truncate">
-												{slice.label}
-											</span>
-											<span className="shrink-0 text-muted-foreground tabular-nums">
-												{slice.count}
-											</span>
-											<span className="w-14 shrink-0 text-right font-medium tabular-nums">
-												{money(slice.value)}
-											</span>
-										</Link>
-									</li>
-								))}
-							</ul>
 						</div>
-					) : (
-						<EmptyChart label="Nothing active" />
-					)}
-				</ChartPanel>
-			</DashboardRow>
+					</div>
+				</DashboardRow>
+			</DashboardSection>
+
+			<DashboardSection
+				title="Performance (90 jours)"
+				description="Taux de réalisation et contrat moyen sur les 90 derniers jours"
+			>
+				<StatGroup>
+					<StatCard
+						label="Taux de réalisation"
+						value={
+							performance.completionRate === null
+								? "—"
+								: formatPercent(performance.completionRate)
+						}
+						description={
+							performance.completedCount + performance.cancelledCount === 0
+								? "Aucun contrat terminé"
+								: `${performance.completedCount} terminés · ${performance.cancelledCount} annulés`
+						}
+					/>
+					<StatCard
+						label="Contrat moyen"
+						value={
+							performance.avgContractCents === null
+								? "—"
+								: money(performance.avgContractCents)
+						}
+						description={
+							performance.avgDurationDays === null
+								? "Aucun retour à mesurer"
+								: `Durée moyenne de ${performance.avgDurationDays} jours`
+						}
+					/>
+					<StatCard
+						label="Annulations"
+						value={formatCount(performance.cancelledCount, "contrat")}
+						description="Contrats annulés sur la période analysée"
+					/>
+				</StatGroup>
+			</DashboardSection>
 
 			<ProfitabilitySection />
 		</div>
@@ -279,6 +315,7 @@ export function FleetDashboard({ summary }: { summary: Summary }) {
 
 function ProfitabilitySection() {
 	const trpc = useTRPC();
+	const workspaceUrl = useWorkspaceUrl();
 	const query = useQuery(trpc.profitability.summary.queryOptions({}));
 	const data = query.data;
 
@@ -286,11 +323,6 @@ function ProfitabilitySection() {
 
 	const money = (cents: number) =>
 		formatMoneyCompact(cents, data.reportingCurrency);
-	const exact = (value: number | string) =>
-		formatMoney(Number(value), data.reportingCurrency);
-	const hasTrend = data.trend.some(
-		(point) => point.revenueCents > 0 || point.expensesCents > 0,
-	);
 	const margin =
 		data.lifetime.revenueCents > 0
 			? formatPercent(data.lifetime.netCents / data.lifetime.revenueCents)
@@ -298,58 +330,21 @@ function ProfitabilitySection() {
 
 	return (
 		<DashboardSection
-			title="Profitability"
-			description="Revenue against financing, charges, maintenance and incidents, across the fleet"
+			title="Rentabilité"
+			description="Revenus comparés aux charges, sur l’ensemble de la flotte"
+			action={
+				<Button asChild variant="outline" size="sm">
+					<Link href={workspaceUrl("/finance")}>Voir les finances</Link>
+				</Button>
+			}
 		>
 			<StatGroup>
-				<StatCard label="Revenue" value={money(data.lifetime.revenueCents)} />
-				<StatCard label="Expenses" value={money(data.lifetime.expensesCents)} />
+				<StatCard label="Revenus" value={money(data.lifetime.revenueCents)} />
+				<StatCard label="Dépenses" value={money(data.lifetime.expensesCents)} />
 				<StatCard label="Net" value={money(data.lifetime.netCents)} />
-				<StatCard label="Margin" value={margin} />
+				<StatCard label="Marge" value={margin} />
 			</StatGroup>
-
-			<ChartPanel
-				title="Revenue vs. expenses"
-				description="Last six months, across the fleet"
-			>
-				{hasTrend ? (
-					<div className="flex flex-1 flex-col justify-center py-4">
-						<AreaTrend
-							data={data.trend}
-							config={PROFITABILITY_TREND_CONFIG}
-							xKey="month"
-							height={196}
-							variant="gradient"
-							bloom="high"
-							showLegend
-							formatValue={exact}
-						/>
-					</div>
-				) : (
-					<EmptyChart label="Aucun revenu ou coût enregistré pour le moment" />
-				)}
-			</ChartPanel>
 		</DashboardSection>
-	);
-}
-
-function ChartPanel({
-	title,
-	description,
-	children,
-}: {
-	title: string;
-	description?: string;
-	children: ReactNode;
-}) {
-	return (
-		<Card className="min-w-0">
-			<CardHeader>
-				<CardTitle>{title}</CardTitle>
-				{description ? <CardDescription>{description}</CardDescription> : null}
-			</CardHeader>
-			<div className="flex flex-1 flex-col border">{children}</div>
-		</Card>
 	);
 }
 

@@ -30,7 +30,7 @@ export default function ContactsPage({
 				<PageShellHeading>
 					<PageShellTitle>Clients</PageShellTitle>
 					<PageShellDescription>
-						Customers and rental history.
+						Liste de clients
 					</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>

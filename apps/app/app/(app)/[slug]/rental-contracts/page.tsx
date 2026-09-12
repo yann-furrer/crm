@@ -71,7 +71,6 @@ async function RentalContracts({
 				dir: "asc",
 				page: 1,
 				pageSize: 100,
-				owner: "all",
 				status: "AVAILABLE",
 				type: "all",
 			}),

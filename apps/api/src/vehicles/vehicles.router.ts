@@ -5,7 +5,6 @@ import { AuthMiddleware } from "../trpc/middlewares/auth.middleware";
 import {
 	vehicleAvailabilityInput,
 	vehicleBulkInput,
-	vehicleBulkOwnerInput,
 	vehicleBulkStatusInput,
 	vehicleClearFinancingInput,
 	vehicleCreateInput,
@@ -51,11 +50,6 @@ export class VehiclesRouter {
 	@Mutation({ input: vehicleIdInput })
 	async delete(@Input("id") id: string) {
 		return this.vehicles.delete(id);
-	}
-
-	@Mutation({ input: vehicleBulkOwnerInput })
-	async bulkAssignOwner(@Input() input: z.infer<typeof vehicleBulkOwnerInput>) {
-		return this.vehicles.bulkAssignOwner(input);
 	}
 
 	@Mutation({ input: vehicleBulkStatusInput })

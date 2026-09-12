@@ -6,6 +6,13 @@ import { Field, FieldGroup, FieldLabel } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@crm/ui/components/select";
+import {
 	Sheet,
 	SheetClose,
 	SheetContent,
@@ -52,13 +59,12 @@ function CreateContactForm() {
 	);
 	const [firstName, setFirstName] = useState("");
 	const [lastName, setLastName] = useState("");
+	const [gender, setGender] = useState<"H" | "F">("H");
 	const [email, setEmail] = useState("");
-	const [title, setTitle] = useState("");
 
 	const firstNameId = useId();
 	const lastNameId = useId();
 	const emailId = useId();
-	const titleId = useId();
 
 	const create = useMutation(
 		trpc.contacts.create.mutationOptions({
@@ -70,8 +76,8 @@ function CreateContactForm() {
 				await setOpen(null);
 				setFirstName("");
 				setLastName("");
+				setGender("H");
 				setEmail("");
-				setTitle("");
 				openRecord({ kind: "contact", id: contact.id });
 			},
 			onError: (error) => toast.error(error.message),
@@ -100,8 +106,8 @@ function CreateContactForm() {
 						create.mutate({
 							firstName,
 							lastName: lastName || undefined,
+							gender,
 							email: email || undefined,
-							title: title || undefined,
 						});
 					}}
 				>
@@ -128,23 +134,28 @@ function CreateContactForm() {
 						</Field>
 
 						<Field>
+							<FieldLabel htmlFor="create-contact-gender">Sexe</FieldLabel>
+							<Select
+								value={gender}
+								onValueChange={(value) => setGender(value as "H" | "F")}
+							>
+								<SelectTrigger id="create-contact-gender">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="H">Homme</SelectItem>
+									<SelectItem value="F">Femme</SelectItem>
+								</SelectContent>
+							</Select>
+						</Field>
+
+						<Field>
 							<FieldLabel htmlFor={emailId}>E-mail</FieldLabel>
 							<Input
 								id={emailId}
 								type="email"
 								value={email}
 								onChange={(event) => setEmail(event.target.value)}
-								autoComplete="off"
-							/>
-						</Field>
-
-						<Field>
-							<FieldLabel htmlFor={titleId}>Profession</FieldLabel>
-							<Input
-								id={titleId}
-								value={title}
-								onChange={(event) => setTitle(event.target.value)}
-								placeholder="Responsable sécurité"
 								autoComplete="off"
 							/>
 						</Field>

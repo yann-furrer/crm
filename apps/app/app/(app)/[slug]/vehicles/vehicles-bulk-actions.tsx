@@ -10,13 +10,12 @@ import {
 	DropdownMenuSubTrigger,
 } from "@crm/ui/components/dropdown-menu";
 import { formatCount } from "@crm/ui/lib/format";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
 	BulkActionsMenu,
 	BulkDeleteDialog,
-	BulkOwnerMenu,
 	reportBulk,
 } from "@/components/crm/bulk-actions";
 import { useCrmCache } from "@/lib/trpc/cache";
@@ -44,21 +43,9 @@ export function VehiclesBulkActions({
 }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
-	const users = useQuery(trpc.users.list.queryOptions());
 	const [confirming, setConfirming] = useState(false);
 
 	const onError = (error: { message: string }) => toast.error(error.message);
-
-	const assignOwner = useMutation(
-		trpc.vehicles.bulkAssignOwner.mutationOptions({
-			onSuccess: async (result) => {
-				await cache.vehicle();
-				reportBulk(result, (count) => `${vehicles(count)} reassigned.`);
-				onDone();
-			},
-			onError,
-		}),
-	);
 
 	const setStatus = useMutation(
 		trpc.vehicles.bulkSetStatus.mutationOptions({
@@ -83,20 +70,13 @@ export function VehiclesBulkActions({
 		}),
 	);
 
-	const pending =
-		assignOwner.isPending || setStatus.isPending || remove.isPending;
+	const pending = setStatus.isPending || remove.isPending;
 
 	return (
 		<>
 			<BulkActionsMenu pending={pending}>
-				<BulkOwnerMenu
-					users={users.data ?? []}
-					onSelect={(ownerId) =>
-						ownerId && assignOwner.mutate({ ids, ownerId })
-					}
-				/>
 				<DropdownMenuSub>
-					<DropdownMenuSubTrigger>Change status</DropdownMenuSubTrigger>
+					<DropdownMenuSubTrigger>Modifier le statut</DropdownMenuSubTrigger>
 					<DropdownMenuSubContent className="max-h-72 overflow-y-auto">
 						<DropdownMenuGroup>
 							{STATUS_OPTIONS.map((option) => (

@@ -33,6 +33,19 @@ const depositOutcomeEnum = z.enum(
 	],
 );
 
+export const damageAreaEnum = z.enum([
+	"FRONT",
+	"REAR",
+	"LEFT_SIDE",
+	"RIGHT_SIDE",
+	"ROOF",
+	"HOOD",
+	"TRUNK",
+	"WINDSHIELD",
+	"LEFT_WHEEL",
+	"RIGHT_WHEEL",
+]);
+
 export const incidentDocumentTypeEnum = z.enum(
 	Object.values(IncidentDocumentType) as [
 		IncidentDocumentType,
@@ -51,6 +64,7 @@ export const incidentCreateInput = z.object({
 	rentalContractId: z.string().nullable().optional(),
 	type: typeEnum,
 	description: z.string().trim().min(1, "Describe what happened."),
+	damageAreas: z.array(damageAreaEnum).max(12).optional(),
 	reportedAt: z.string().nullable().optional(),
 	responsibleParty: responsiblePartyEnum.optional(),
 	insuranceClaimNumber: z.string().trim().nullable().optional(),
@@ -67,6 +81,8 @@ export const incidentCreateInput = z.object({
 export type IncidentCreateInput = z.infer<typeof incidentCreateInput>;
 
 const incidentUpdateInput = z.object({
+	description: z.string().trim().min(1, "Describe what happened.").optional(),
+	damageAreas: z.array(damageAreaEnum).max(12).optional(),
 	responsibleParty: responsiblePartyEnum.optional(),
 	insuranceClaimNumber: z.string().trim().nullable().optional(),
 	insuranceStatus: insuranceStatusEnum.optional(),

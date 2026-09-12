@@ -1,11 +1,22 @@
 "use client";
 
 import Calendar from "@carbon/icons-react/es/Calendar";
+import Edit from "@carbon/icons-react/es/Edit";
 import ToolKit from "@carbon/icons-react/es/ToolKit";
 import TrashCan from "@carbon/icons-react/es/TrashCan";
 import Warning from "@carbon/icons-react/es/Warning";
 import { ChargeFrequency, FinancingType } from "@crm/db/enums";
 import type { FieldValueJson } from "@crm/db/fields";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@crm/ui/components/alert-dialog";
 import { Button } from "@crm/ui/components/button";
 import type { ChartConfig } from "@crm/ui/components/chart";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
@@ -36,7 +47,6 @@ import {
 	InlineSelectField,
 	savingValue,
 } from "@/components/crm/inline-field";
-import { OwnerCell } from "@/components/crm/owner-cell";
 import { RentalStatusIndicator } from "@/components/crm/rental-status";
 import { Timeline } from "@/components/crm/timeline/timeline";
 import { AreaTrend } from "@/components/dashboard-charts";
@@ -62,68 +72,93 @@ import { useOpenRecord, useRecordSheetView } from "./record-stack";
 
 type Vehicle = RouterOutputs["vehicles"]["byId"];
 type VehicleCharge = RouterOutputs["vehicleCharges"]["listByVehicle"][number];
+type VehicleIncident = RouterOutputs["incidents"]["listByVehicle"][number];
+
+const DAMAGE_AREA_OPTIONS = [
+	{ value: "FRONT", label: "Avant" },
+	{ value: "REAR", label: "Arrière" },
+	{ value: "LEFT_SIDE", label: "Côté gauche" },
+	{ value: "RIGHT_SIDE", label: "Côté droit" },
+	{ value: "ROOF", label: "Toit" },
+	{ value: "HOOD", label: "Capot" },
+	{ value: "TRUNK", label: "Coffre" },
+	{ value: "WINDSHIELD", label: "Pare-brise" },
+	{ value: "LEFT_WHEEL", label: "Roue gauche" },
+	{ value: "RIGHT_WHEEL", label: "Roue droite" },
+] as const;
+type DamageArea = (typeof DAMAGE_AREA_OPTIONS)[number]["value"];
+
+function isDamageArea(value: string): value is DamageArea {
+	return DAMAGE_AREA_OPTIONS.some((area) => area.value === value);
+}
 
 const VEHICLE_TYPE_OPTIONS = [
-	{ value: "CAR", label: "Car" },
-	{ value: "MOTORCYCLE", label: "Motorcycle" },
+	{ value: "CAR", label: "Voiture" },
+	{ value: "MOTORCYCLE", label: "Moto" },
 	{ value: "SCOOTER", label: "Scooter" },
-	{ value: "TRUCK", label: "Truck" },
+	{ value: "TRUCK", label: "Camion" },
 	{ value: "MINIBUS", label: "Minibus" },
 ];
 
 const VEHICLE_FUEL_OPTIONS = [
-	{ value: "DIESEL", label: "Diesel" },
-	{ value: "GASOLINE", label: "Gasoline" },
-	{ value: "ELECTRIC", label: "Electric" },
+	{ value: "DIESEL", label: "Gazole" },
+	{ value: "GASOLINE", label: "Essence" },
+	{ value: "ELECTRIC", label: "Électrique" },
 ];
 
 const VEHICLE_STATUS_OPTIONS = [
-	{ value: "AVAILABLE", label: "Available" },
-	{ value: "RESERVED", label: "Reserved" },
-	{ value: "RENTED", label: "Rented" },
+	{ value: "AVAILABLE", label: "Disponible" },
+	{ value: "RESERVED", label: "Réservée" },
+	{ value: "RENTED", label: "Louée" },
 	{ value: "MAINTENANCE", label: "Maintenance" },
-	{ value: "OUT_OF_SERVICE", label: "Out of service" },
-	{ value: "STOLEN", label: "Stolen" },
+	{ value: "OUT_OF_SERVICE", label: "Hors service" },
+	{ value: "STOLEN", label: "Volée" },
 ];
 
 const CONTRACT_COLUMNS = [
-	{ id: "renter", header: "Renter", width: "w-[28%]", className: "pl-5" },
-	{ id: "status", header: "Status", width: "w-[18%]" },
+	{ id: "renter", header: "Client", width: "w-[28%]", className: "pl-5" },
+	{ id: "status", header: "Statut", width: "w-[18%]" },
 	{ id: "dates", header: "Dates", width: "w-[28%]" },
 	{
 		id: "amount",
-		header: "Amount",
+		header: "Montant",
 		width: "w-[16%]",
 		align: "right" as const,
 	},
 ];
 
 const MAINTENANCE_COLUMNS = [
-	{ id: "description", header: "Work", width: "w-[34%]", className: "pl-5" },
-	{ id: "when", header: "When", width: "w-[22%]" },
+	{
+		id: "description",
+		header: "Intervention",
+		width: "w-[34%]",
+		className: "pl-5",
+	},
+	{ id: "when", header: "Date", width: "w-[22%]" },
 	{
 		id: "odometer",
-		header: "Odometer",
+		header: "Kilométrage",
 		width: "w-[18%]",
 		align: "right" as const,
 	},
-	{ id: "cost", header: "Cost", width: "w-[16%]", align: "right" as const },
+	{ id: "cost", header: "Coût", width: "w-[16%]", align: "right" as const },
 ];
 
 const INCIDENT_COLUMNS = [
 	{ id: "type", header: "Type", width: "w-[16%]", className: "pl-5" },
-	{ id: "description", header: "Description", width: "w-[34%]" },
-	{ id: "responsible", header: "Responsible", width: "w-[16%]" },
-	{ id: "insurance", header: "Insurance", width: "w-[16%]" },
+	{ id: "description", header: "Commentaire", width: "w-[30%]" },
+	{ id: "areas", header: "Zones", width: "w-[24%]" },
+	{ id: "responsible", header: "Responsable", width: "w-[16%]" },
+	{ id: "actions", header: "", width: "w-[8%]" },
 ];
 
 const CHARGE_COLUMNS = [
 	{ id: "label", header: "Charge", width: "w-[36%]" },
-	{ id: "frequency", header: "Frequency", width: "w-[18%]" },
-	{ id: "period", header: "Period", width: "w-[26%]" },
+	{ id: "frequency", header: "Fréquence", width: "w-[18%]" },
+	{ id: "period", header: "Période", width: "w-[26%]" },
 	{
 		id: "amount",
-		header: "Amount",
+		header: "Montant",
 		width: "w-[14%]",
 		align: "right" as const,
 	},
@@ -131,18 +166,22 @@ const CHARGE_COLUMNS = [
 ];
 
 const FINANCING_TYPE_OPTIONS = [
-	{ value: FinancingType.LOAN, label: "Loan" },
+	{ value: FinancingType.LOAN, label: "Crédit" },
 	{ value: FinancingType.LEASING, label: "Leasing" },
 ];
 
 const CHARGE_FREQUENCY_OPTIONS = [
-	{ value: ChargeFrequency.ONE_TIME, label: "One-time" },
-	{ value: ChargeFrequency.MONTHLY, label: "Monthly" },
+	{ value: ChargeFrequency.ONE_TIME, label: "Ponctuelle" },
+	{ value: ChargeFrequency.MONTHLY, label: "Mensuelle" },
 ];
 
 const PROFITABILITY_TREND_CONFIG: ChartConfig = {
-	revenueCents: { label: "Revenue", color: "var(--success)" },
-	expensesCents: { label: "Expenses", color: "var(--chart-5)" },
+	revenueCents: { label: "Revenus", color: "var(--success)" },
+	expensesCents: { label: "Coûts", color: "var(--chart-5)" },
+};
+
+const MILEAGE_TREND_CONFIG: ChartConfig = {
+	mileage: { label: "Kilométrage", color: "var(--chart-1)" },
 };
 
 export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
@@ -156,22 +195,22 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 		? [
 				{
 					value: "overview",
-					label: "Overview",
+					label: "Vue d’ensemble",
 					content: <VehicleOverview vehicle={vehicle} />,
 				},
 				{
 					value: "history",
-					label: "Rental history",
+					label: "Historique des locations",
 					content: <VehicleRentalHistory vehicleId={vehicle.id} />,
 				},
 				{
 					value: "maintenance",
-					label: "Maintenance",
+					label: "Entretien",
 					content: <VehicleMaintenance vehicleId={vehicle.id} />,
 				},
 				{
 					value: "financing",
-					label: "Financing",
+					label: "Financement",
 					content: <VehicleFinancing vehicle={vehicle} />,
 				},
 				{
@@ -181,7 +220,7 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 				},
 				{
 					value: "activity",
-					label: "Activity",
+					label: "Activité",
 					content: <Timeline anchor={{ vehicleId: vehicle.id }} />,
 				},
 				{
@@ -197,24 +236,26 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 		<RecordSheetFrame
 			loading={query.isPending}
 			error={query.error?.message ?? null}
-			title={vehicle ? `${vehicle.make} ${vehicle.model}` : "Vehicle"}
+			title={vehicle ? `${vehicle.make} ${vehicle.model}` : "Véhicule"}
 			description={vehicle?.plateNumber}
 			media={
-				vehicle ? <EntityLogo name={vehicle.plateNumber} size="lg" /> : null
+				vehicle ? (
+					<EntityLogo name={vehicle.plateNumber} size="lg" elevation="raised" />
+				) : null
 			}
 			actions={
 				vehicle ? (
 					<RecordActions
 						record={{ kind: "vehicle", id: vehicle.id }}
 						name={`${vehicle.make} ${vehicle.model}`}
-						consequence="Its rental history, maintenance record and incidents go too."
+						consequence="Son historique de location, ses entretiens et ses incidents sont également supprimés."
 					/>
 				) : null
 			}
 			stats={
 				vehicle ? (
 					<DetailSheetStats>
-						<DetailSheetStat label="Status">
+						<DetailSheetStat label="Statut">
 							<StatusIndicator
 								tone={
 									vehicle.status === "AVAILABLE"
@@ -232,7 +273,7 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 								}
 							/>
 						</DetailSheetStat>
-						<DetailSheetStat label="Daily rate">
+						<DetailSheetStat label="Tarif journalier">
 							{vehicle.dailyRateCents === null ? (
 								<EmptyCellValue />
 							) : (
@@ -241,13 +282,10 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 								</span>
 							)}
 						</DetailSheetStat>
-						<DetailSheetStat label="Mileage">
+						<DetailSheetStat label="Kilométrage">
 							<span className="tabular-nums">
 								{vehicle.mileage.toLocaleString()} km
 							</span>
-						</DetailSheetStat>
-						<DetailSheetStat label="Owner">
-							<OwnerCell owner={vehicle.owner} />
 						</DetailSheetStat>
 					</DetailSheetStats>
 				) : null
@@ -262,8 +300,6 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
-	const users = useQuery(trpc.users.list.queryOptions());
-
 	const update = useMutation(
 		trpc.vehicles.update.mutationOptions({
 			onSuccess: () => cache.vehicle(vehicle.id, { settle: "record" }),
@@ -282,7 +318,7 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 
 	return (
 		<DetailSheetBody>
-			<DetailSheetSection title="Details" action={<FieldsCog kind="vehicle" />}>
+			<DetailSheetSection title="Détails" action={<FieldsCog kind="vehicle" />}>
 				<DetailSheetProperties>
 					<InlineSelectField
 						label="Type"
@@ -291,49 +327,49 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						onSave={(type) => save({ type: type as never })}
 					/>
 					<InlineSelectField
-						label="Fuel"
+						label="Carburant"
 						value={vehicle.fuelType}
 						options={VEHICLE_FUEL_OPTIONS}
 						onSave={(fuelType) => save({ fuelType: fuelType as never })}
 					/>
 					<InlineField
-						label="Make"
+						label="Marque"
 						value={vehicle.make}
 						saving={isSaving("make")}
 						onSave={(make) => make && save({ make })}
 					/>
 					<InlineField
-						label="Model"
+						label="Modèle"
 						value={vehicle.model}
 						saving={isSaving("model")}
 						onSave={(model) => model && save({ model })}
 					/>
 					<InlineField
-						label="Year"
+						label="Année"
 						value={vehicle.year === null ? null : String(vehicle.year)}
 						saving={isSaving("year")}
 						onSave={(next) => save({ year: next ? Number(next) : null })}
 					/>
 					<InlineField
-						label="Plate number"
+						label="Immatriculation"
 						value={vehicle.plateNumber}
 						saving={isSaving("plateNumber")}
 						onSave={(plateNumber) => plateNumber && save({ plateNumber })}
 					/>
 					<InlineField
-						label="Color"
+						label="Couleur"
 						value={vehicle.color}
 						saving={isSaving("color")}
 						onSave={(color) => save({ color })}
 					/>
 					<InlineSelectField
-						label="Status"
+						label="Statut"
 						value={vehicle.status}
 						options={VEHICLE_STATUS_OPTIONS}
 						onSave={(status) => save({ status: status as never })}
 					/>
 					<InlineField
-						label="Daily rate"
+						label="Tarif journalier"
 						value={
 							vehicle.dailyRateCents === null
 								? null
@@ -344,7 +380,7 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 							if (next === "") return save({ dailyRateCents: null });
 							const parsed = Number.parseFloat(next);
 							if (!Number.isFinite(parsed) || parsed < 0) {
-								toast.error("Daily rate has to be a number.");
+								toast.error("Le tarif journalier doit être un nombre.");
 								return;
 							}
 							save({ dailyRateCents: Math.round(parsed * 100) });
@@ -354,43 +390,34 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						}
 					/>
 					<InlineField
-						label="Mileage"
+						label="Kilométrage"
 						value={String(vehicle.mileage)}
 						saving={isSaving("mileage")}
 						onSave={(next) => save({ mileage: Number(next) || 0 })}
 					/>
 					<InlineField
-						label="Insurance policy #"
+						label="N° de police d’assurance"
 						value={vehicle.insurancePolicyNumber}
 						saving={isSaving("insurancePolicyNumber")}
 						onSave={(insurancePolicyNumber) => save({ insurancePolicyNumber })}
 					/>
 					<InlineDateField
-						label="Insurance expires"
+						label="Expiration de l’assurance"
 						value={vehicle.insuranceExpiresAt}
 						saving={isSaving("insuranceExpiresAt")}
 						onSave={(next) => save({ insuranceExpiresAt: next || null })}
 					/>
 					<InlineDateField
-						label="Registration expires"
+						label="Expiration de la carte grise"
 						value={vehicle.registrationExpiresAt}
 						saving={isSaving("registrationExpiresAt")}
 						onSave={(next) => save({ registrationExpiresAt: next || null })}
 					/>
 					<InlineDateField
-						label="Next maintenance"
+						label="Prochain entretien"
 						value={vehicle.nextMaintenanceAtDate}
 						saving={isSaving("nextMaintenanceAtDate")}
 						onSave={(next) => save({ nextMaintenanceAtDate: next || null })}
-					/>
-					<InlineSelectField
-						label="Owner"
-						value={vehicle.owner.id}
-						options={(users.data ?? []).map((user) => ({
-							value: user.id,
-							label: user.name,
-						}))}
-						onSave={(ownerId) => save({ ownerId })}
 					/>
 					<RecordFields
 						fields={vehicle.fields}
@@ -398,6 +425,29 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						onSave={saveFields}
 					/>
 				</DetailSheetProperties>
+			</DetailSheetSection>
+			<DetailSheetSection title="Évolution du kilométrage">
+				{vehicle.mileageHistory.length > 0 ? (
+					<AreaTrend
+						data={vehicle.mileageHistory.map((entry) => ({
+							date: new Intl.DateTimeFormat("fr-FR", {
+								day: "2-digit",
+								month: "short",
+							}).format(new Date(entry.recordedAt)),
+							mileage: entry.mileage,
+						}))}
+						config={MILEAGE_TREND_CONFIG}
+						xKey="date"
+						height={180}
+						formatValue={(value) =>
+							`${Number(value).toLocaleString("fr-FR")} km`
+						}
+					/>
+				) : (
+					<DetailSheetProperty label="Historique">
+						Aucune restitution enregistrée.
+					</DetailSheetProperty>
+				)}
 			</DetailSheetSection>
 		</DetailSheetBody>
 	);
@@ -414,7 +464,6 @@ function VehicleRentalHistory({ vehicleId }: { vehicleId: string }) {
 			dir: "desc",
 			page: 1,
 			pageSize: 50,
-			owner: "all",
 			status: "all",
 			vehicle: vehicleId,
 			channel: "all",
@@ -427,8 +476,8 @@ function VehicleRentalHistory({ vehicleId }: { vehicleId: string }) {
 		return (
 			<DetailSheetEmpty
 				icon={Calendar}
-				title="No rental history"
-				description="This vehicle has not been rented out yet."
+				title="Aucun historique de location"
+				description="Ce véhicule n’a encore jamais été loué."
 			/>
 		);
 	}
@@ -487,15 +536,15 @@ function VehicleMaintenance({ vehicleId }: { vehicleId: string }) {
 				{adding ? null : (
 					<DetailSheetEmpty
 						icon={ToolKit}
-						title="No maintenance recorded"
-						description="Nothing has been serviced on this vehicle yet."
+						title="Aucun entretien enregistré"
+						description="Aucun entretien n’a encore été enregistré pour ce véhicule."
 						action={
 							<button
 								type="button"
 								onClick={() => setAdding(true)}
 								className="text-foreground text-sm underline-offset-2 hover:underline"
 							>
-								Add a maintenance record
+								Ajouter un entretien
 							</button>
 						}
 					/>
@@ -541,7 +590,7 @@ function VehicleMaintenance({ vehicleId }: { vehicleId: string }) {
 					onClick={() => setAdding(true)}
 					className="w-full border-t px-5 py-2 text-left text-muted-foreground text-sm hover:text-foreground"
 				>
-					Add a maintenance record
+					Ajouter un entretien
 				</button>
 			)}
 		</>
@@ -565,7 +614,7 @@ function MaintenanceForm({
 		trpc.maintenanceRecords.create.mutationOptions({
 			onSuccess: async () => {
 				await cache.vehicle(vehicleId);
-				toast.success("Maintenance record added.");
+				toast.success("Entretien ajouté.");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),
@@ -574,7 +623,7 @@ function MaintenanceForm({
 
 	return (
 		<QuickAddForm
-			submitLabel="Add record"
+			submitLabel="Ajouter l’entretien"
 			pending={create.isPending}
 			ready={description.trim() !== ""}
 			onCancel={onDone}
@@ -594,7 +643,7 @@ function MaintenanceForm({
 					autoFocus
 					value={description}
 					onChange={(event) => setDescription(event.target.value)}
-					placeholder="Oil and filter change"
+					placeholder="Vidange et remplacement du filtre"
 					autoComplete="off"
 				/>
 			</Field>
@@ -614,8 +663,8 @@ function VehicleFinancing({ vehicle }: { vehicle: Vehicle }) {
 	return (
 		<DetailSheetBody>
 			<FinancingSection vehicle={vehicle} />
-			<ChargesSection vehicleId={vehicle.id} />
 			<ProfitabilitySection vehicleId={vehicle.id} />
+			<ChargesSection vehicleId={vehicle.id} />
 		</DetailSheetBody>
 	);
 }
@@ -629,7 +678,7 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 		trpc.vehicles.clearFinancing.mutationOptions({
 			onSuccess: async () => {
 				await cache.vehicle(vehicle.id);
-				toast.success("Financing removed.");
+				toast.success("Financement supprimé.");
 			},
 			onError: (error) => toast.error(error.message),
 		}),
@@ -637,7 +686,7 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 
 	if (editing || !vehicle.financing) {
 		return (
-			<DetailSheetSection title="Financing">
+			<DetailSheetSection title="Financement">
 				<FinancingForm
 					vehicle={vehicle}
 					onDone={() => setEditing(false)}
@@ -651,11 +700,11 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 
 	return (
 		<DetailSheetSection
-			title="Financing"
+			title="Financement"
 			action={
 				<div className="flex items-center gap-1">
 					<Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-						Edit
+						Modifier
 					</Button>
 					<Button
 						variant="ghost"
@@ -663,7 +712,7 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 						disabled={clear.isPending}
 						onClick={() => clear.mutate({ vehicleId: vehicle.id })}
 					>
-						Remove
+						Supprimer
 					</Button>
 				</div>
 			}
@@ -673,7 +722,7 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 					{FINANCING_TYPE_OPTIONS.find((o) => o.value === financing.type)
 						?.label ?? financing.type}
 				</DetailSheetProperty>
-				<DetailSheetProperty label="Monthly payment">
+				<DetailSheetProperty label="Mensualité">
 					{financing.monthlyPaymentCents === null ? (
 						<EmptyCellValue />
 					) : (
@@ -681,21 +730,21 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 					)}
 				</DetailSheetProperty>
 				{financing.principalAmountCents === null ? null : (
-					<DetailSheetProperty label="Principal">
+					<DetailSheetProperty label="Capital financé">
 						{formatMoney(financing.principalAmountCents, financing.currency)}
 					</DetailSheetProperty>
 				)}
 				{financing.interestRate === null ? null : (
-					<DetailSheetProperty label="Interest rate">
+					<DetailSheetProperty label="Taux d’intérêt">
 						{financing.interestRate}%
 					</DetailSheetProperty>
 				)}
 				{financing.termMonths === null ? null : (
-					<DetailSheetProperty label="Term">
-						{financing.termMonths} months
+					<DetailSheetProperty label="Durée">
+						{financing.termMonths} mois
 					</DetailSheetProperty>
 				)}
-				<DetailSheetProperty label="Start date">
+				<DetailSheetProperty label="Date de début">
 					<LocalDay date={financing.startDate} />
 				</DetailSheetProperty>
 			</DetailSheetProperties>
@@ -756,7 +805,7 @@ function FinancingForm({
 		trpc.vehicles.setFinancing.mutationOptions({
 			onSuccess: async () => {
 				await cache.vehicle(vehicle.id);
-				toast.success("Financing saved.");
+				toast.success("Financement enregistré.");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),
@@ -768,7 +817,9 @@ function FinancingForm({
 
 	return (
 		<QuickAddForm
-			submitLabel={existing ? "Save financing" : "Add financing"}
+			submitLabel={
+				existing ? "Enregistrer le financement" : "Ajouter un financement"
+			}
 			pending={save.isPending}
 			ready={ready}
 			onCancel={onCancel ?? onDone}
@@ -809,7 +860,7 @@ function FinancingForm({
 				</Select>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor={monthlyPaymentId}>Monthly payment</FieldLabel>
+				<FieldLabel htmlFor={monthlyPaymentId}>Mensualité</FieldLabel>
 				<Input
 					id={monthlyPaymentId}
 					autoFocus
@@ -821,7 +872,7 @@ function FinancingForm({
 			</Field>
 			{type === FinancingType.LOAN ? (
 				<Field>
-					<FieldLabel htmlFor={principalId}>Principal</FieldLabel>
+					<FieldLabel htmlFor={principalId}>Capital financé</FieldLabel>
 					<Input
 						id={principalId}
 						inputMode="decimal"
@@ -833,7 +884,7 @@ function FinancingForm({
 			) : null}
 			{type === FinancingType.LOAN ? (
 				<Field>
-					<FieldLabel htmlFor={interestRateId}>Interest rate (%)</FieldLabel>
+					<FieldLabel htmlFor={interestRateId}>Taux d’intérêt (%)</FieldLabel>
 					<Input
 						id={interestRateId}
 						inputMode="decimal"
@@ -844,7 +895,7 @@ function FinancingForm({
 				</Field>
 			) : null}
 			<Field>
-				<FieldLabel htmlFor={termMonthsId}>Term (months)</FieldLabel>
+				<FieldLabel htmlFor={termMonthsId}>Durée (mois)</FieldLabel>
 				<Input
 					id={termMonthsId}
 					inputMode="numeric"
@@ -854,7 +905,7 @@ function FinancingForm({
 				/>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor={startDateId}>Start date</FieldLabel>
+				<FieldLabel htmlFor={startDateId}>Date de début</FieldLabel>
 				<Input
 					id={startDateId}
 					type="date"
@@ -882,7 +933,7 @@ function ChargesSection({ vehicleId }: { vehicleId: string }) {
 			action={
 				adding ? null : (
 					<Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
-						Add a charge
+						Ajouter une charge
 					</Button>
 				)
 			}
@@ -893,7 +944,7 @@ function ChargesSection({ vehicleId }: { vehicleId: string }) {
 			{rows.length === 0 ? (
 				adding ? null : (
 					<p className="text-muted-foreground text-xs/5">
-						No recurring charges on this vehicle yet.
+						Aucune charge récurrente pour ce véhicule.
 					</p>
 				)
 			) : (
@@ -921,7 +972,7 @@ function ChargeRow({
 		trpc.vehicleCharges.delete.mutationOptions({
 			onSuccess: async () => {
 				await cache.vehicle(vehicleId);
-				toast.success("Charge removed.");
+				toast.success("Charge supprimée.");
 			},
 			onError: (error) => toast.error(error.message),
 		}),
@@ -964,7 +1015,7 @@ function ChargeRow({
 					onClick={() => remove.mutate({ id: charge.id })}
 				>
 					<Icon icon={TrashCan} />
-					<span className="sr-only">Delete this charge</span>
+					<span className="sr-only">Supprimer cette charge</span>
 				</Button>
 			</TableCell>
 		</SimpleTableRow>
@@ -996,7 +1047,7 @@ function ChargeForm({
 		trpc.vehicleCharges.create.mutationOptions({
 			onSuccess: async () => {
 				await cache.vehicle(vehicleId);
-				toast.success("Charge added.");
+				toast.success("Charge ajoutée.");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),
@@ -1008,7 +1059,7 @@ function ChargeForm({
 
 	return (
 		<QuickAddForm
-			submitLabel="Add charge"
+			submitLabel="Ajouter la charge"
 			pending={create.isPending}
 			ready={ready}
 			onCancel={onDone}
@@ -1024,18 +1075,18 @@ function ChargeForm({
 			}}
 		>
 			<Field>
-				<FieldLabel htmlFor={labelId}>Charge</FieldLabel>
+				<FieldLabel htmlFor={labelId}>Libellé</FieldLabel>
 				<Input
 					id={labelId}
 					autoFocus
 					value={label}
 					onChange={(event) => setLabel(event.target.value)}
-					placeholder="Monthly insurance"
+					placeholder="Assurance mensuelle"
 					autoComplete="off"
 				/>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor={amountId}>Amount</FieldLabel>
+				<FieldLabel htmlFor={amountId}>Montant</FieldLabel>
 				<Input
 					id={amountId}
 					inputMode="decimal"
@@ -1045,7 +1096,7 @@ function ChargeForm({
 				/>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor={frequencyId}>Frequency</FieldLabel>
+				<FieldLabel htmlFor={frequencyId}>Fréquence</FieldLabel>
 				<Select
 					value={frequency}
 					onValueChange={(next) => setFrequency(next as ChargeFrequency)}
@@ -1063,7 +1114,7 @@ function ChargeForm({
 				</Select>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor={startDateId}>Start date</FieldLabel>
+				<FieldLabel htmlFor={startDateId}>Date de début</FieldLabel>
 				<Input
 					id={startDateId}
 					type="date"
@@ -1086,23 +1137,59 @@ function ProfitabilitySection({ vehicleId }: { vehicleId: string }) {
 
 	const money = (cents: number | string) =>
 		formatMoneyCompact(Number(cents), data.reportingCurrency);
+	const percent = (value: number | null) =>
+		value === null ? "—" : `${value.toFixed(1).replace(".", ",")} %`;
 	const hasTrend = data.trend.some(
 		(point) => point.revenueCents > 0 || point.expensesCents > 0,
 	);
+	const monthlyIsProfitable = data.monthly.netCents >= 0;
 
 	return (
-		<DetailSheetSection title="Profitability">
+		<DetailSheetSection title="Rentabilité du véhicule">
+			<DetailSheetProperties>
+				<DetailSheetProperty label="Statut">
+					<StatusIndicator
+						tone={monthlyIsProfitable ? "success" : "error"}
+						label={
+							monthlyIsProfitable ? "Rentable ce mois" : "Déficitaire ce mois"
+						}
+					/>
+				</DetailSheetProperty>
+				<DetailSheetProperty label="Total rapporté">
+					{money(data.totalReportedCents)}
+				</DetailSheetProperty>
+				<DetailSheetProperty label="Marge cumulée">
+					{percent(data.marginPercent)}
+				</DetailSheetProperty>
+				<DetailSheetProperty label="Couverture des coûts">
+					{percent(data.costCoveragePercent)}
+				</DetailSheetProperty>
+			</DetailSheetProperties>
 			<DetailSheetStats>
-				<DetailSheetStat label="Revenue">
-					{money(data.lifetime.revenueCents)}
+				<DetailSheetStat label="Revenus ce mois">
+					{money(data.monthly.revenueCents)}
 				</DetailSheetStat>
-				<DetailSheetStat label="Expenses">
-					{money(data.lifetime.expensesCents)}
+				<DetailSheetStat label="Coûts ce mois">
+					{money(data.monthly.expensesCents)}
 				</DetailSheetStat>
-				<DetailSheetStat label="Net">
-					{money(data.lifetime.netCents)}
+				<DetailSheetStat label="Résultat net">
+					{money(data.monthly.netCents)}
+				</DetailSheetStat>
+				<DetailSheetStat label="Marge ce mois">
+					{percent(data.monthly.marginPercent)}
 				</DetailSheetStat>
 			</DetailSheetStats>
+			<DetailSheetProperties>
+				<DetailSheetProperty label="Revenus cumulés">
+					{money(data.lifetime.revenueCents)}
+				</DetailSheetProperty>
+				<DetailSheetProperty label="Coûts cumulés">
+					{money(data.lifetime.expensesCents)}
+				</DetailSheetProperty>
+				<DetailSheetProperty label="Résultat cumulé">
+					{money(data.lifetime.netCents)}
+				</DetailSheetProperty>
+			</DetailSheetProperties>
 			{hasTrend ? (
 				<div className="pt-2">
 					<AreaTrend
@@ -1149,15 +1236,15 @@ function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
 				{adding ? null : (
 					<DetailSheetEmpty
 						icon={Warning}
-						title="No incidents"
-						description="Nothing has been reported on this vehicle."
+						title="Aucun incident"
+						description="Aucun incident n’a été signalé pour ce véhicule."
 						action={
 							<button
 								type="button"
 								onClick={() => setAdding(true)}
 								className="text-foreground text-sm underline-offset-2 hover:underline"
 							>
-								Report an incident
+								Signaler un incident
 							</button>
 						}
 					/>
@@ -1171,20 +1258,11 @@ function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
 			{form}
 			<SimpleTable variant="panel" columns={INCIDENT_COLUMNS}>
 				{rows.map((incident) => (
-					<SimpleTableRow key={incident.id}>
-						<TableCell className="truncate py-2.5 pr-3 pl-5 font-medium">
-							{incident.type}
-						</TableCell>
-						<TableCell className="truncate px-3 py-2.5 text-muted-foreground">
-							{incident.description}
-						</TableCell>
-						<TableCell className="px-3 py-2.5 text-muted-foreground">
-							{incident.responsibleParty}
-						</TableCell>
-						<TableCell className="px-3 py-2.5 text-muted-foreground">
-							{incident.insuranceStatus}
-						</TableCell>
-					</SimpleTableRow>
+					<IncidentRow
+						key={incident.id}
+						incident={incident}
+						vehicleId={vehicleId}
+					/>
 				))}
 			</SimpleTable>
 			{adding ? null : (
@@ -1193,7 +1271,7 @@ function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
 					onClick={() => setAdding(true)}
 					className="w-full border-t px-5 py-2 text-left text-muted-foreground text-sm hover:text-foreground"
 				>
-					Report an incident
+					Signaler un incident
 				</button>
 			)}
 		</>
@@ -1202,46 +1280,225 @@ function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
 
 function IncidentForm({
 	vehicleId,
+	incident,
 	onDone,
 }: {
 	vehicleId: string;
+	incident?: VehicleIncident;
 	onDone: () => void;
 }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
-	const [description, setDescription] = useState("");
+	const [description, setDescription] = useState(incident?.description ?? "");
+	const [damageAreas, setDamageAreas] = useState<DamageArea[]>(
+		(incident?.damageAreas ?? []).filter(isDamageArea),
+	);
 	const descriptionId = useId();
 
 	const create = useMutation(
 		trpc.incidents.create.mutationOptions({
 			onSuccess: async () => {
 				await cache.vehicle(vehicleId);
-				toast.success("Incident reported.");
+				toast.success("Incident signalé.");
 				onDone();
 			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);
+	const update = useMutation(
+		trpc.incidents.update.mutationOptions({
+			onSuccess: async () => {
+				await cache.vehicle(vehicleId);
+				toast.success("Incident modifié.");
+				onDone();
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+	const pending = create.isPending || update.isPending;
+	const submit = () => {
+		if (incident) {
+			update.mutate({
+				id: incident.id,
+				data: { description, damageAreas },
+			});
+			return;
+		}
+		create.mutate({
+			vehicleId,
+			type: "DAMAGE",
+			description,
+			damageAreas,
+		});
+	};
 
 	return (
 		<QuickAddForm
-			submitLabel="Report incident"
-			pending={create.isPending}
+			submitLabel={
+				incident ? "Enregistrer les modifications" : "Signaler l’incident"
+			}
+			pending={pending}
 			ready={description.trim() !== ""}
 			onCancel={onDone}
-			onSubmit={() => create.mutate({ vehicleId, type: "DAMAGE", description })}
+			onSubmit={submit}
 		>
 			<Field className="sm:col-span-2">
-				<FieldLabel htmlFor={descriptionId}>What happened</FieldLabel>
+				<FieldLabel htmlFor={descriptionId}>Commentaire</FieldLabel>
 				<Textarea
 					id={descriptionId}
 					autoFocus
 					value={description}
 					onChange={(event) => setDescription(event.target.value)}
-					placeholder="Scratch on the rear bumper noticed at check-in."
+					placeholder="Rayure sur le pare-chocs arrière constatée au retour."
 					rows={3}
 				/>
 			</Field>
+			<Field className="sm:col-span-2">
+				<FieldLabel>Parties concernées</FieldLabel>
+				<p className="text-muted-foreground text-xs">
+					Sélectionnez une ou plusieurs zones sur le schéma.
+				</p>
+				<DamageAreaPicker value={damageAreas} onChange={setDamageAreas} />
+			</Field>
 		</QuickAddForm>
+	);
+}
+
+function IncidentRow({
+	incident,
+	vehicleId,
+}: {
+	incident: VehicleIncident;
+	vehicleId: string;
+}) {
+	const [editing, setEditing] = useState(false);
+	const [confirming, setConfirming] = useState(false);
+	const trpc = useTRPC();
+	const cache = useCrmCache();
+	const remove = useMutation(
+		trpc.incidents.delete.mutationOptions({
+			onSuccess: async () => {
+				await cache.vehicle(vehicleId);
+				toast.success("Incident supprimé.");
+				setConfirming(false);
+			},
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	if (editing) {
+		return (
+			<SimpleTableRow>
+				<TableCell colSpan={5} className="p-0">
+					<IncidentForm
+						vehicleId={vehicleId}
+						incident={incident}
+						onDone={() => setEditing(false)}
+					/>
+				</TableCell>
+			</SimpleTableRow>
+		);
+	}
+
+	return (
+		<>
+			<SimpleTableRow>
+				<TableCell className="truncate py-2.5 pr-3 pl-5 font-medium">
+					Dommage
+				</TableCell>
+				<TableCell className="truncate px-3 py-2.5 text-muted-foreground">
+					{incident.description}
+				</TableCell>
+				<TableCell className="px-3 py-2.5 text-muted-foreground">
+					{incident.damageAreas.length > 0
+						? incident.damageAreas
+								.map(
+									(area) =>
+										DAMAGE_AREA_OPTIONS.find((option) => option.value === area)
+											?.label ?? area,
+								)
+								.join(", ")
+						: "Non précisée"}
+				</TableCell>
+				<TableCell className="px-3 py-2.5 text-muted-foreground">
+					{incident.responsibleParty}
+				</TableCell>
+				<TableCell className="py-1 pr-1 text-right">
+					<div className="flex justify-end gap-1">
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							onClick={() => setEditing(true)}
+						>
+							<Icon icon={Edit} />
+							<span className="sr-only">Modifier cet incident</span>
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							disabled={remove.isPending}
+							onClick={() => setConfirming(true)}
+						>
+							<Icon icon={TrashCan} />
+							<span className="sr-only">Supprimer cet incident</span>
+						</Button>
+					</div>
+				</TableCell>
+			</SimpleTableRow>
+			<AlertDialog open={confirming} onOpenChange={setConfirming}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Supprimer cet incident ?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Cette action supprimera définitivement cet élément de l’historique
+							du véhicule.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Annuler</AlertDialogCancel>
+						<AlertDialogAction
+							variant="destructive"
+							onClick={() => remove.mutate({ id: incident.id })}
+						>
+							Supprimer
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</>
+	);
+}
+
+function DamageAreaPicker({
+	value,
+	onChange,
+}: {
+	value: DamageArea[];
+	onChange: (value: DamageArea[]) => void;
+}) {
+	const toggle = (area: DamageArea) =>
+		onChange(
+			value.includes(area)
+				? value.filter((current) => current !== area)
+				: [...value, area],
+		);
+
+	return (
+		<div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-5">
+			{DAMAGE_AREA_OPTIONS.map((area) => {
+				const selected = value.includes(area.value);
+				return (
+					<button
+						key={area.value}
+						type="button"
+						aria-pressed={selected}
+						onClick={() => toggle(area.value)}
+						className="min-h-10 rounded-md border bg-background px-2 py-2 text-sm transition-colors hover:bg-accent aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
+					>
+						{area.label}
+					</button>
+				);
+			})}
+		</div>
 	);
 }

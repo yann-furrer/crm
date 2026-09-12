@@ -483,21 +483,9 @@ describe("a record update that fails", () => {
 				make: "Toyota",
 				model: "Corolla",
 				plateNumber: `SPEC-${suffix}`,
-				ownerId,
 			},
 			select: { id: true },
 		});
-
-		await expect(
-			vehicles.update(vehicle.id, {
-				ownerId: `nobody-${suffix}`,
-				fields: { spec_risk: "Champion left" },
-			}),
-		).rejects.toThrow();
-
-		expect(
-			await db.fieldValue.count({ where: { vehicleId: vehicle.id } }),
-		).toBe(0);
 
 		await vehicles.update(vehicle.id, {
 			fields: { spec_risk: "Champion left" },

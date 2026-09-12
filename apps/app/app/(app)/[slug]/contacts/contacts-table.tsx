@@ -1,11 +1,14 @@
 "use client";
 
+import CheckmarkFilled from "@carbon/icons-react/es/CheckmarkFilled";
+import CloseFilled from "@carbon/icons-react/es/CloseFilled";
 import {
 	DataTable,
 	type DataTableColumn,
 	type DataTableFacet,
 } from "@crm/ui/components/data-table";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
+import { Icon } from "@crm/ui/components/icon";
 import { PersonAvatar } from "@crm/ui/components/person-avatar";
 import { useTableSelection } from "@crm/ui/hooks/use-table-selection";
 import { useQuery } from "@tanstack/react-query";
@@ -30,7 +33,7 @@ const COLUMNS: DataTableColumn<ContactRow>[] = [
 		header: "Nom",
 		sortable: true,
 		hideable: false,
-		width: "w-[22%]",
+		width: "w-[28%]",
 		cell: (row) => (
 			<span className="flex min-w-0 items-center gap-2">
 				<PersonAvatar
@@ -44,30 +47,56 @@ const COLUMNS: DataTableColumn<ContactRow>[] = [
 		),
 	},
 	{
-		id: "title",
-		header: "Profession",
-		sortable: true,
-		width: "w-[20%]",
+		id: "gender",
+		header: "Sexe",
+		width: "w-[10%]",
 		hideBelow: "lg",
+		cell: (row) => (row.gender === "H" ? "Homme" : "Femme"),
+	},
+	{
+		id: "contact",
+		header: "Coordonnées",
+		sortable: true,
+		width: "w-[25%]",
+		hideBelow: "md",
 		cell: (row) =>
-			row.title ? (
-				<span className="truncate">{row.title}</span>
+			row.email || row.phone ? (
+				<span className="truncate text-muted-foreground">
+					{row.email ?? row.phone}
+				</span>
 			) : (
 				<EmptyCellValue />
 			),
 	},
 	{
-		id: "email",
-		header: "E-mail",
-		sortable: true,
-		width: "w-[24%]",
-		hideBelow: "md",
-		cell: (row) =>
-			row.email ? (
-				<span className="truncate text-muted-foreground">{row.email}</span>
-			) : (
-				<EmptyCellValue />
-			),
+		id: "documents",
+		header: "Dossiers",
+		width: "w-[12%]",
+		hideBelow: "lg",
+		cell: (row) => {
+			const complete = ["DRIVERS_LICENSE", "ID_CARD", "PROOF_OF_ADDRESS"].every(
+				(type) => row.documentTypes.includes(type),
+			);
+			return (
+				<span
+					className="flex items-center gap-1 text-muted-foreground"
+					role="img"
+					aria-label={complete ? "Dossier complet" : "Dossier incomplet"}
+					title={complete ? "Dossier complet" : "Dossier incomplet"}
+				>
+					<Icon
+						icon={complete ? CheckmarkFilled : CloseFilled}
+						className={complete ? "text-success" : "text-destructive"}
+					/>
+					{
+						row.documentTypes.filter((type) =>
+							["DRIVERS_LICENSE", "ID_CARD", "PROOF_OF_ADDRESS"].includes(type),
+						).length
+					}
+					/3
+				</span>
+			);
+		},
 	},
 	{
 		id: "createdAt",

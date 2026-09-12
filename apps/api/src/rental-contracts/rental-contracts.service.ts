@@ -46,11 +46,43 @@ import type {
 	RentalContractBulkOwnerInput,
 	RentalContractCreateInput,
 	RentalContractListInput,
+	RentalContractPlanningInput,
 	RentalContractUpdateInput,
 	SetDepositStatusInput,
 	SetDriverRoleInput,
 	SetRentalContractStatusInput,
 } from "./rental-contracts.contracts";
+
+function extraMileageAmount(
+	kilometers: number,
+	includedPerDay: number | null,
+	days: number,
+	rules: Array<{
+		kilometers: number | null;
+		pricePerKm: PrismaNamespace.Decimal;
+	}>,
+	fallback: PrismaNamespace.Decimal | null,
+) {
+	const included = (includedPerDay ?? 0) * days;
+	let remaining = Math.max(0, kilometers - included);
+	if (remaining === 0) return new PrismaNamespace.Decimal(0);
+
+	if (rules.length === 0) {
+		return fallback
+			? fallback.times(remaining)
+			: new PrismaNamespace.Decimal(0);
+	}
+
+	let total = new PrismaNamespace.Decimal(0);
+	for (const rule of rules) {
+		const tierKilometers = rule.kilometers ?? remaining;
+		const charged = Math.min(remaining, tierKilometers);
+		total = total.plus(rule.pricePerKm.times(charged));
+		remaining -= charged;
+		if (remaining <= 0) break;
+	}
+	return total;
+}
 
 const OWNER_SELECT = {
 	id: true,
@@ -137,6 +169,8 @@ export class RentalContractsService {
 					channel: true,
 					startDate: true,
 					endDate: true,
+					pickupTime: true,
+					returnTime: true,
 					totalAmount: true,
 					currency: true,
 					baseAmount: true,
@@ -165,6 +199,8 @@ export class RentalContractsService {
 					baseAmount,
 					startDate,
 					endDate,
+					pickupTime,
+					returnTime,
 					lastActivityAt,
 					createdAt,
 					status,
@@ -174,6 +210,8 @@ export class RentalContractsService {
 					status,
 					startDate: startDate.toISOString(),
 					endDate: endDate.toISOString(),
+					pickupTime,
+					returnTime,
 					isLate: status === RentalContractStatus.ACTIVE && endDate < now,
 					totalAmountCents: toCents(totalAmount),
 					baseAmountCents: toCents(baseAmount),
@@ -192,6 +230,48 @@ export class RentalContractsService {
 		};
 	}
 
+	async planning(input: RentalContractPlanningInput) {
+		const startDate = parseDate(input.startDate);
+		const endDate = parseDate(input.endDate);
+		if (!startDate || !endDate || endDate <= startDate) {
+			throw new BadRequestException("End date must be after start date.");
+		}
+
+		const [vehicles, contracts] = await Promise.all([
+			this.db.vehicle.findMany({
+				orderBy: [{ make: "asc" }, { model: "asc" }, { plateNumber: "asc" }],
+				select: VEHICLE_SELECT,
+			}),
+			this.db.rentalContract.findMany({
+				where: {
+					status: { not: RentalContractStatus.CANCELLED },
+					startDate: { lt: endDate },
+					endDate: { gt: startDate },
+				},
+				orderBy: { startDate: "asc" },
+				select: {
+					id: true,
+					vehicleId: true,
+					status: true,
+					startDate: true,
+					endDate: true,
+					pickupTime: true,
+					returnTime: true,
+					contact: { select: CONTACT_SELECT },
+				},
+			}),
+		]);
+
+		return {
+			vehicles,
+			contracts: contracts.map(({ startDate, endDate, ...row }) => ({
+				...row,
+				startDate: startDate.toISOString(),
+				endDate: endDate.toISOString(),
+			})),
+		};
+	}
+
 	async byId(id: string) {
 		const contract = await this.db.rentalContract.findUnique({
 			where: { id },
@@ -201,6 +281,8 @@ export class RentalContractsService {
 				channel: true,
 				startDate: true,
 				endDate: true,
+				pickupTime: true,
+				returnTime: true,
 				actualPickupAt: true,
 				actualReturnAt: true,
 				pricePerDay: true,
@@ -211,6 +293,11 @@ export class RentalContractsService {
 				fxRateAt: true,
 				mileageIncludedPerDay: true,
 				extraMileageFeePerKm: true,
+				extraMileageAmount: true,
+				mileageRules: {
+					orderBy: { position: "asc" },
+					select: { kilometers: true, pricePerKm: true },
+				},
 				mileageAtPickup: true,
 				mileageAtReturn: true,
 				fuelLevelAtPickup: true,
@@ -249,10 +336,14 @@ export class RentalContractsService {
 			fxRateAt,
 			pricePerDay,
 			extraMileageFeePerKm,
+			extraMileageAmount,
+			mileageRules,
 			depositAmount,
 			depositReturnedAmount,
 			startDate,
 			endDate,
+			pickupTime,
+			returnTime,
 			actualPickupAt,
 			actualReturnAt,
 			depositReturnedAt,
@@ -269,6 +360,11 @@ export class RentalContractsService {
 			totalAmountCents: toCents(totalAmount),
 			baseAmountCents: toCents(baseAmount),
 			extraMileageFeePerKmCents: toCents(extraMileageFeePerKm),
+			extraMileageAmountCents: toCents(extraMileageAmount),
+			mileagePricingRules: mileageRules.map((rule) => ({
+				kilometers: rule.kilometers,
+				pricePerKmCents: toCents(rule.pricePerKm) ?? 0,
+			})),
 			depositAmountCents: toCents(depositAmount),
 			depositReturnedAmountCents: toCents(depositReturnedAmount),
 			reportingCurrency: await this.conversion.reportingCurrency(),
@@ -276,6 +372,8 @@ export class RentalContractsService {
 			fxRateAt: fxRateAt?.toISOString() ?? null,
 			startDate: startDate.toISOString(),
 			endDate: endDate.toISOString(),
+			pickupTime,
+			returnTime,
 			actualPickupAt: actualPickupAt?.toISOString() ?? null,
 			actualReturnAt: actualReturnAt?.toISOString() ?? null,
 			depositReturnedAt: depositReturnedAt?.toISOString() ?? null,
@@ -326,6 +424,8 @@ export class RentalContractsService {
 						channel: input.channel,
 						startDate,
 						endDate,
+						pickupTime: input.pickupTime ?? null,
+						returnTime: input.returnTime ?? null,
 						pricePerDay,
 						currency,
 						totalAmount,
@@ -341,6 +441,19 @@ export class RentalContractsService {
 					},
 					select: { id: true, vehicleId: true },
 				});
+
+				if (input.mileagePricingRules) {
+					await tx.rentalContractMileageRule.createMany({
+						data: input.mileagePricingRules.map((rule, position) => ({
+							contractId: created.id,
+							kilometers: rule.kilometers,
+							pricePerKm:
+								decimalFromCents(rule.pricePerKmCents) ??
+								new PrismaNamespace.Decimal(0),
+							position,
+						})),
+					});
+				}
 
 				await tx.rentalContractDriver.create({
 					data: {
@@ -396,6 +509,12 @@ export class RentalContractsService {
 			endDate = requireDate(input.endDate);
 			recompute = true;
 		}
+		if (input.pickupTime !== undefined) {
+			data.pickupTime = input.pickupTime;
+		}
+		if (input.returnTime !== undefined) {
+			data.returnTime = input.returnTime;
+		}
 		if (endDate <= startDate) {
 			throw new BadRequestException(
 				"The end date must be after the start date.",
@@ -425,6 +544,18 @@ export class RentalContractsService {
 			data.extraMileageFeePerKm = decimalFromCents(
 				input.extraMileageFeePerKmCents,
 			);
+		}
+		if (input.mileagePricingRules !== undefined) {
+			data.mileageRules = {
+				deleteMany: {},
+				create: input.mileagePricingRules.map((rule, position) => ({
+					kilometers: rule.kilometers,
+					pricePerKm:
+						decimalFromCents(rule.pricePerKmCents) ??
+						new PrismaNamespace.Decimal(0),
+					position,
+				})),
+			};
 		}
 		if (input.contractDocumentUrl !== undefined) {
 			data.contractDocumentUrl = input.contractDocumentUrl;
@@ -625,7 +756,21 @@ export class RentalContractsService {
 	async recordReturn(input: RecordReturnInput) {
 		const contract = await this.db.rentalContract.findUnique({
 			where: { id: input.id },
-			select: { id: true, vehicleId: true },
+			select: {
+				id: true,
+				vehicleId: true,
+				startDate: true,
+				endDate: true,
+				pricePerDay: true,
+				currency: true,
+				mileageIncludedPerDay: true,
+				extraMileageFeePerKm: true,
+				mileageAtPickup: true,
+				mileageRules: {
+					orderBy: { position: "asc" },
+					select: { kilometers: true, pricePerKm: true },
+				},
+			},
 		});
 
 		if (!contract) {
@@ -634,6 +779,32 @@ export class RentalContractsService {
 
 		const actualReturnAt =
 			parseDate(input.actualReturnAt ?? null) ?? new Date();
+		if (
+			contract.mileageAtPickup !== null &&
+			input.mileageAtReturn < contract.mileageAtPickup
+		) {
+			throw new BadRequestException(
+				"The return mileage cannot be lower than the pickup mileage.",
+			);
+		}
+
+		const extraAmount = extraMileageAmount(
+			contract.mileageAtPickup === null
+				? 0
+				: input.mileageAtReturn - contract.mileageAtPickup,
+			contract.mileageIncludedPerDay,
+			daysBetween(contract.startDate, contract.endDate),
+			contract.mileageRules,
+			contract.extraMileageFeePerKm,
+		);
+		const rentalAmount = contract.pricePerDay.times(
+			daysBetween(contract.startDate, contract.endDate),
+		);
+		const totalAmount = rentalAmount.plus(extraAmount);
+		const fx = await this.conversion.convertFields(
+			totalAmount,
+			contract.currency,
+		);
 
 		const updated = await this.db.$transaction(async (tx) => {
 			const row = await tx.rentalContract.update({
@@ -643,8 +814,31 @@ export class RentalContractsService {
 					fuelLevelAtReturn: input.fuelLevelAtReturn,
 					actualReturnAt,
 					status: RentalContractStatus.COMPLETED,
+					extraMileageAmount: extraAmount,
+					totalAmount,
+					...fx,
 				},
 				select: { id: true, status: true },
+			});
+
+			await tx.vehicle.update({
+				where: { id: contract.vehicleId },
+				data: { mileage: input.mileageAtReturn },
+			});
+
+			await tx.vehicleMileageEntry.upsert({
+				where: { contractId: contract.id },
+				create: {
+					vehicleId: contract.vehicleId,
+					contractId: contract.id,
+					mileage: input.mileageAtReturn,
+					recordedAt: actualReturnAt,
+				},
+				update: {
+					vehicleId: contract.vehicleId,
+					mileage: input.mileageAtReturn,
+					recordedAt: actualReturnAt,
+				},
 			});
 
 			await this.syncVehicleStatus(

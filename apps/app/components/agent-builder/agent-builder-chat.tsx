@@ -564,7 +564,7 @@ function SharedAgentChat({
 				<h1 className="min-w-0 flex-1 truncate font-medium text-sm">
 					{conversation.agent?.name ?? conversation.title ?? "Agent builder"}
 				</h1>
-				<span className="text-muted-foreground text-xs">Read-only</span>
+				<span className="text-muted-foreground text-xs">Lecture seule</span>
 			</header>
 
 			<MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor">
@@ -657,7 +657,7 @@ function ChatHeader({
 							className="size-3.5 animate-spin text-ring"
 							motion="none"
 						/>
-						<span className="sr-only">Working in background</span>
+						<span className="sr-only">Traitement en arrière-plan</span>
 						<span aria-hidden="true" className="hidden sm:inline">
 							Working in background
 						</span>
@@ -709,7 +709,7 @@ function UserSubmission({
 				{response ? (
 					<div className="flex items-center gap-1.5 text-muted-foreground text-xs">
 						<Icon icon={Reply} className="size-3.5" />
-						<span>Answer to follow-up</span>
+						<span>Répondre au suivi</span>
 					</div>
 				) : null}
 				{submission.commandType === "CREATE_AGENT" ? (
@@ -838,7 +838,7 @@ function FollowUpTranscriptItem({
 	return (
 		<div className="w-full max-w-sm border-ring/50 border-l-2 bg-muted/40 px-3 py-2.5">
 			<div className="flex items-center justify-between gap-3 text-xs">
-				<span className="font-medium">Follow-up</span>
+				<span className="font-medium">Suivi</span>
 				<span className="text-muted-foreground">
 					{answered ? "Answered" : "Waiting for your answer"}
 				</span>
@@ -1351,12 +1351,12 @@ function ChatUnavailable() {
 	return (
 		<main className="flex flex-1 items-center justify-center p-8">
 			<div className="max-w-md text-center">
-				<h1 className="font-medium text-lg">Chat unavailable</h1>
+				<h1 className="font-medium text-lg">Conversation indisponible</h1>
 				<p className="mt-2 text-muted-foreground text-sm">
 					This chat does not exist or you do not have access to it.
 				</p>
 				<Button asChild variant="outline" className="mt-5">
-					<Link href={workspaceUrl("/chat")}>Start a new chat</Link>
+					<Link href={workspaceUrl("/chat")}>Démarrer une conversation</Link>
 				</Button>
 			</div>
 		</main>

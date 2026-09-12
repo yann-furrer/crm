@@ -21,11 +21,13 @@ import { AgentPanel } from "@/components/crm/agent-panel";
 import { contactName } from "@/components/crm/contact-name";
 import { ContactEnrichmentAction } from "@/components/crm/enrichment-actions";
 import { EnrichmentIndicator } from "@/components/crm/enrichment-status";
-import { FactProvenance, FactSuggestion } from "@/components/crm/facts";
 import { FieldsCog, RecordFields } from "@/components/crm/fields/record-fields";
-import { InlineField, savingValue } from "@/components/crm/inline-field";
+import {
+	InlineField,
+	InlineSelectField,
+	savingValue,
+} from "@/components/crm/inline-field";
 import { RentalStatusIndicator } from "@/components/crm/rental-status";
-import { ContactSocials } from "@/components/crm/social-links";
 import { Timeline } from "@/components/crm/timeline/timeline";
 import {
 	DetailSheetBody,
@@ -43,15 +45,14 @@ import {
 	LocalDay,
 	LocalRelativeDate,
 } from "@/components/local-date-time";
-import { factsByField } from "@/lib/contact-facts";
 import { ENRICHMENT_POLL_MS, isEnriching } from "@/lib/enrichment-status";
 import { savingField } from "@/lib/pending-field";
-import { hasContactLinks } from "@/lib/social-links";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import { ContactDocuments } from "./contact-documents";
 import { RecordActions } from "./record-actions";
-import { MetaLine, MoneyAmount, RecordSheetFrame } from "./record-parts";
+import { MoneyAmount, RecordSheetFrame } from "./record-parts";
 import { useOpenRecord, useRecordSheetView } from "./record-stack";
 
 type Contact = RouterOutputs["contacts"]["byId"];
@@ -61,6 +62,11 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 	day: "numeric",
 	year: "numeric",
 };
+
+const GENDER_OPTIONS = [
+	{ value: "H", label: "Homme" },
+	{ value: "F", label: "Femme" },
+] as const;
 
 const RENTAL_CONTRACT_COLUMNS = [
 	{ id: "vehicle", header: "Véhicule", width: "w-[26%]", className: "pl-5" },
@@ -104,6 +110,12 @@ export function ContactSheet({ contactId }: { contactId: string }) {
 					content: <ContactRentalContracts contact={contact} />,
 				},
 				{
+					value: "documents",
+					label: "Documents",
+					count: contact.documents.length,
+					content: <ContactDocuments contact={contact} />,
+				},
+				{
 					value: "activity",
 					label: "Activité",
 					content: <Timeline anchor={{ contactId: contact.id }} />,
@@ -122,7 +134,6 @@ export function ContactSheet({ contactId }: { contactId: string }) {
 			loading={query.isPending}
 			error={query.error?.message ?? null}
 			title={contact ? contactName(contact) : "Client"}
-			description={contact ? <MetaLine parts={[contact.title]} /> : undefined}
 			note={
 				contact && contact.enrichmentStatus !== "COMPLETE" ? (
 					<EnrichmentIndicator
@@ -201,19 +212,6 @@ function ContactOverview({ contact }: { contact: Contact }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
 
-	const { applied, proposed } = factsByField(contact.facts);
-
-	const agentProps = (field: string) => {
-		const fact = applied.get(field);
-		const suggestion = proposed.get(field);
-		return {
-			provenance: fact ? <FactProvenance fact={fact} /> : undefined,
-			suggestion: suggestion ? (
-				<FactSuggestion fact={suggestion} contactId={contact.id} />
-			) : undefined,
-		};
-	};
-
 	const update = useMutation(
 		trpc.contacts.update.mutationOptions({
 			onSuccess: () => cache.contact(contact.id, { settle: "record" }),
@@ -247,13 +245,12 @@ function ContactOverview({ contact }: { contact: Contact }) {
 						saving={isSaving("lastName")}
 						onSave={(lastName) => save({ lastName })}
 					/>
-					<InlineField
-						label="Profession"
-						value={contact.title}
-						placeholder="Responsable sécurité"
-						saving={isSaving("title")}
-						onSave={(title) => save({ title })}
-						{...agentProps("title")}
+					<InlineSelectField
+						label="Sexe"
+						value={contact.gender}
+						options={[...GENDER_OPTIONS]}
+						saving={isSaving("gender")}
+						onSave={(gender) => save({ gender })}
 					/>
 					<InlineField
 						label="E-mail"
@@ -269,30 +266,6 @@ function ContactOverview({ contact }: { contact: Contact }) {
 						saving={isSaving("phone")}
 						onSave={(phone) => save({ phone })}
 					/>
-					<InlineField
-						label="LinkedIn"
-						value={contact.linkedinUrl}
-						type="url"
-						saving={isSaving("linkedinUrl")}
-						onSave={(linkedinUrl) => save({ linkedinUrl })}
-						{...agentProps("linkedinUrl")}
-					/>
-					<InlineField
-						label="X"
-						value={contact.twitterUrl}
-						type="url"
-						saving={isSaving("twitterUrl")}
-						onSave={(twitterUrl) => save({ twitterUrl })}
-						{...agentProps("twitterUrl")}
-					/>
-					<InlineField
-						label="GitHub"
-						value={contact.githubUrl}
-						type="url"
-						saving={isSaving("githubUrl")}
-						onSave={(githubUrl) => save({ githubUrl })}
-						{...agentProps("githubUrl")}
-					/>
 					<RecordFields
 						fields={contact.fields}
 						saving={isSavingField}
@@ -307,12 +280,6 @@ function ContactOverview({ contact }: { contact: Contact }) {
 				relationship={contact.relationship}
 				contactName={contactName(contact)}
 			/>
-
-			{hasContactLinks(contact) ? (
-				<DetailSheetSection title="Liens">
-					<ContactSocials contact={contact} />
-				</DetailSheetSection>
-			) : null}
 		</DetailSheetBody>
 	);
 }

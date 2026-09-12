@@ -23,7 +23,6 @@ model User {
   sessions      Session[]
   accounts      Account[]
 
-  ownedVehicles        Vehicle[]           @relation("VehicleOwner")
   ownedRentalContracts RentalContract[]    @relation("RentalContractOwner")
   recordedPayments     Payment[]           @relation("PaymentRecorder")
   reportedIncidents    Incident[]          @relation("IncidentReporter")
@@ -343,10 +342,16 @@ enum AgentResponseRating {
   DOWN
 }
 
+enum ContactGender {
+  H
+  F
+}
+
 model Contact {
   id          String  @id @default(cuid())
   firstName   String
   lastName    String?
+  gender      ContactGender @default(H)
   email       String? @unique
   phone       String?
   title       String?
@@ -376,11 +381,35 @@ model Contact {
   calendarEvents  CalendarEvent[]
   eventAttendance CalendarAttendee[]
   fieldValues     FieldValue[]
+  documents       ContactDocument[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
   @@index([lastActivityAt])
   @@map("contact")
+}
+
+enum ContactDocumentType {
+  DRIVERS_LICENSE
+  ID_CARD
+  PROOF_OF_ADDRESS
+  OTHER
+}
+
+model ContactDocument {
+  id        String  @id @default(cuid())
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  type        ContactDocumentType
+  url         String
+  fileName    String?
+  contentType String?
+
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+  @@map("contactDocument")
 }
 
 enum FactBand {
@@ -909,13 +938,11 @@ model Vehicle {
 
   photoUrls String[] @default([])
 
-  ownerId String
-  owner   User   @relation("VehicleOwner", fields: [ownerId], references: [id])
-
   lastActivityAt DateTime?
 
   conversations      AgentConversation[]
   rentalContracts    RentalContract[]
+  mileageHistory     VehicleMileageEntry[]
   incidents          Incident[]
   maintenanceRecords MaintenanceRecord[]
   financing          VehicleFinancing?
@@ -925,7 +952,6 @@ model Vehicle {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  @@index([ownerId])
   @@index([status])
   @@index([type])
   @@index([lastActivityAt])
@@ -1011,6 +1037,8 @@ model RentalContract {
 
   startDate      DateTime
   endDate        DateTime
+  pickupTime     String?
+  returnTime     String?
   actualPickupAt DateTime?
   actualReturnAt DateTime?
 
@@ -1025,6 +1053,7 @@ model RentalContract {
 
   mileageIncludedPerDay Int?
   extraMileageFeePerKm  Decimal?   @db.Decimal(10, 2)
+  extraMileageAmount    Decimal?   @db.Decimal(14, 2)
   mileageAtPickup       Int?
   mileageAtReturn       Int?
   fuelLevelAtPickup     FuelLevel?
@@ -1052,6 +1081,8 @@ model RentalContract {
   inspections   VehicleInspection[]
   activities    Activity[]
   fieldValues   FieldValue[]
+  mileageRules  RentalContractMileageRule[]
+  mileageEntry  VehicleMileageEntry?
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
@@ -1066,6 +1097,33 @@ model RentalContract {
   @@index([currency])
   @@index([channel])
   @@map("rentalContract")
+}
+
+model VehicleMileageEntry {
+  id         String         @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  contractId String?        @unique
+  contract   RentalContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  mileage    Int
+  recordedAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  @@index([vehicleId, recordedAt])
+  @@map("vehicleMileageEntry")
+}
+
+model RentalContractMileageRule {
+  id         String        @id @default(cuid())
+  contractId String
+  contract   RentalContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  kilometers Int?
+  pricePerKm Decimal       @db.Decimal(10, 2)
+  position   Int
+  createdAt  DateTime      @default(now())
+
+  @@index([contractId, position])
+  @@map("rentalContractMileageRule")
 }
 
 model RentalContractDriver {
@@ -1126,6 +1184,7 @@ model Incident {
   reportedById String
   reportedBy   User         @relation("IncidentReporter", fields: [reportedById], references: [id], onDelete: Restrict)
   description  String
+  damageAreas  String[]     @default([])
 
   responsibleParty ResponsibleParty @default(UNKNOWN)
 

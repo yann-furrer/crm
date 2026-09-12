@@ -1,5 +1,6 @@
 import {
 	type ContactBriefSections,
+	ContactGender,
 	type Db,
 	type FactEvidence,
 	FactStatus,
@@ -7,6 +8,7 @@ import {
 	Prisma as PrismaNamespace,
 	type RecordSource,
 } from "@crm/db";
+import { blobEnabled } from "@crm/db/blob";
 import {
 	ConflictException,
 	Injectable,
@@ -32,6 +34,7 @@ import {
 } from "../trpc/list-input";
 import type {
 	ContactCreateInput,
+	ContactDocumentUploadInput,
 	ContactListInput,
 	ContactUpdateInput,
 	FactDecisionInput,
@@ -75,9 +78,12 @@ export type ContactRow = {
 	id: string;
 	firstName: string;
 	lastName: string | null;
+	gender: ContactGender;
 	email: string | null;
+	phone: string | null;
 	title: string | null;
 	imageUrl: string | null;
+	documentTypes: string[];
 	lastActivityAt: string | null;
 	createdAt: string;
 	fields: Record<string, string | number | boolean | null>;
@@ -113,6 +119,7 @@ export class ContactsService {
 				id: true,
 				firstName: true,
 				lastName: true,
+				gender: true,
 				email: true,
 				imageUrl: true,
 			},
@@ -135,9 +142,12 @@ export class ContactsService {
 					id: true,
 					firstName: true,
 					lastName: true,
+					gender: true,
 					email: true,
+					phone: true,
 					title: true,
 					imageUrl: true,
+					documents: { select: { type: true } },
 					source: true,
 					lastActivityAt: true,
 					createdAt: true,
@@ -153,8 +163,9 @@ export class ContactsService {
 		);
 
 		return {
-			rows: rows.map((row) => ({
+			rows: rows.map(({ documents, ...row }) => ({
 				...row,
+				documentTypes: [...new Set(documents.map((document) => document.type))],
 				lastActivityAt: row.lastActivityAt?.toISOString() ?? null,
 				createdAt: row.createdAt.toISOString(),
 				fields: tableFields.get(row.id) ?? {},
@@ -171,6 +182,7 @@ export class ContactsService {
 				id: true,
 				firstName: true,
 				lastName: true,
+				gender: true,
 				email: true,
 				phone: true,
 				title: true,
@@ -213,6 +225,17 @@ export class ContactsService {
 				driverOn: {
 					select: { role: true, contract: { select: RENTAL_CONTRACT_SELECT } },
 				},
+				documents: {
+					orderBy: { createdAt: "desc" },
+					select: {
+						id: true,
+						type: true,
+						url: true,
+						fileName: true,
+						contentType: true,
+						createdAt: true,
+					},
+				},
 			},
 		});
 
@@ -222,8 +245,15 @@ export class ContactsService {
 
 		const relationship = await this.relationship(id);
 
-		const { rentalContracts, driverOn, createdAt, brief, facts, ...rest } =
-			contact;
+		const {
+			rentalContracts,
+			driverOn,
+			createdAt,
+			brief,
+			facts,
+			documents,
+			...rest
+		} = contact;
 
 		const asPrimary = rentalContracts.map((contract) => ({
 			...serializeRentalContract(contract),
@@ -251,6 +281,10 @@ export class ContactsService {
 				...fact,
 				evidence: fact.evidence as FactEvidence[],
 				observedAt: fact.observedAt.toISOString(),
+			})),
+			documents: documents.map((document) => ({
+				...document,
+				createdAt: document.createdAt.toISOString(),
 			})),
 			relationship,
 			rentalContracts: [...asPrimary, ...asDriver].sort((a, b) =>
@@ -281,11 +315,12 @@ export class ContactsService {
 				data: {
 					firstName: input.firstName.trim(),
 					lastName: blankToNull(input.lastName ?? ""),
+					gender: input.gender ?? ContactGender.H,
 					email,
 					phone: blankToNull(input.phone ?? ""),
 					title: blankToNull(input.title ?? ""),
 				},
-				select: { id: true, firstName: true, lastName: true },
+				select: { id: true, firstName: true, lastName: true, gender: true },
 			});
 		});
 
@@ -357,6 +392,7 @@ export class ContactsService {
 		if (input.firstName !== undefined) data.firstName = input.firstName.trim();
 		if (input.lastName !== undefined)
 			data.lastName = blankToNull(input.lastName);
+		if (input.gender !== undefined) data.gender = input.gender;
 		if (input.email !== undefined) data.email = normalizeEmail(input.email);
 		if (input.phone !== undefined) data.phone = blankToNull(input.phone);
 		if (input.title !== undefined) data.title = blankToNull(input.title);
@@ -378,7 +414,7 @@ export class ContactsService {
 				const updated = await tx.contact.update({
 					where: { id },
 					data,
-					select: { id: true, firstName: true, lastName: true },
+					select: { id: true, firstName: true, lastName: true, gender: true },
 				});
 
 				if (typeof data.email === "string") {
@@ -555,6 +591,93 @@ export class ContactsService {
 		});
 
 		return { contactId: fact.contactId, field: fact.field, applied: accepted };
+	}
+
+	async uploadDocument(
+		contactId: string,
+		file: { buffer: Buffer; mimetype: string; originalname: string },
+		input: ContactDocumentUploadInput,
+	) {
+		const contact = await this.db.contact.findUnique({
+			where: { id: contactId },
+			select: { id: true },
+		});
+		if (!contact)
+			throw new NotFoundException(`No contact with id ${contactId}.`);
+		if (!blobEnabled())
+			return { stored: false as const, reason: "storage_unavailable" };
+
+		const safeName =
+			file.originalname.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80) ||
+			"document";
+		const path = `contacts/${contactId}/${input.type.toLowerCase()}/${safeName}`;
+		const { put } = await import("@vercel/blob");
+		const blob = await put(path, file.buffer, {
+			access: "public",
+			contentType: file.mimetype,
+			addRandomSuffix: true,
+		});
+
+		const document = await this.db.contactDocument.create({
+			data: {
+				contactId,
+				type: input.type,
+				url: blob.url,
+				fileName: file.originalname,
+				contentType: file.mimetype,
+			},
+		});
+
+		this.logger.log({
+			message: "Contact document uploaded",
+			contactId,
+			documentId: document.id,
+			type: document.type,
+		});
+
+		return {
+			stored: true as const,
+			document: this.serializeDocument(document),
+		};
+	}
+
+	async deleteDocument(contactId: string, documentId: string) {
+		const document = await this.db.contactDocument.findFirst({
+			where: { id: documentId, contactId },
+			select: { id: true, url: true },
+		});
+		if (!document) {
+			throw new NotFoundException(`No document with id ${documentId}.`);
+		}
+
+		if (blobEnabled()) {
+			try {
+				const { del } = await import("@vercel/blob");
+				await del(document.url);
+			} catch (error) {
+				this.logger.warn({
+					message: "Failed to delete contact document blob",
+					contactId,
+					documentId,
+					reason: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
+
+		await this.db.contactDocument.delete({ where: { id: documentId } });
+
+		return { id: documentId };
+	}
+
+	private serializeDocument(document: {
+		id: string;
+		type: string;
+		url: string;
+		fileName: string | null;
+		contentType: string | null;
+		createdAt: Date;
+	}) {
+		return { ...document, createdAt: document.createdAt.toISOString() };
 	}
 
 	private searchFilter(q: string): Prisma.ContactWhereInput {

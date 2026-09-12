@@ -5,9 +5,11 @@ import type { CarbonIconType } from "@carbon/icons-react/es/CarbonIcon";
 import CarFront from "@carbon/icons-react/es/CarFront";
 import Chat from "@carbon/icons-react/es/Chat";
 import Close from "@carbon/icons-react/es/Close";
+import Currency from "@carbon/icons-react/es/Currency";
 import Dashboard from "@carbon/icons-react/es/Dashboard";
 import DocumentSigned from "@carbon/icons-react/es/DocumentSigned";
 import Settings from "@carbon/icons-react/es/Settings";
+import Timeline from "@carbon/icons-react/es/Timeline";
 import UserMultiple from "@carbon/icons-react/es/UserMultiple";
 import { Button } from "@crm/ui/components/button";
 import { Icon } from "@crm/ui/components/icon";
@@ -56,6 +58,12 @@ const ITEMS: RailItem[] = [
 	},
 	{ title: "Véhicules", href: "/vehicles", icon: CarFront, match: "prefix" },
 	{
+		title: "Planning",
+		href: "/planning",
+		icon: Timeline,
+		match: "prefix",
+	},
+	{
 		title: "Availability",
 		href: "/availability",
 		icon: Calendar,
@@ -65,6 +73,12 @@ const ITEMS: RailItem[] = [
 		title: "Contrats de location",
 		href: "/rental-contracts",
 		icon: DocumentSigned,
+		match: "prefix",
+	},
+	{
+		title: "Finance",
+		href: "/finance",
+		icon: Currency,
 		match: "prefix",
 	},
 	{ title: "Settings", href: "/settings", icon: Settings, match: "prefix" },
@@ -95,9 +109,9 @@ function RailLink({
 					variant="ghost"
 					size="icon"
 					className={cn(
-						"text-muted-foreground",
+						"text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-foreground",
 						active &&
-							"bg-muted text-foreground hover:bg-muted hover:text-foreground",
+							"bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
 					)}
 				>
 					<Link
@@ -199,7 +213,7 @@ export function AppIconRailFallback() {
 		<nav
 			aria-label="Primary"
 			aria-busy="true"
-			className="hidden w-14 shrink-0 flex-col items-center gap-1 border-r py-3 md:flex [view-transition-name:app-rail]"
+			className="hidden w-14 shrink-0 flex-col items-center gap-1 border-sidebar-border bg-sidebar border-r py-3 md:flex [view-transition-name:app-rail]"
 		>
 			{ITEMS.map((item) => (
 				<Button
@@ -207,7 +221,7 @@ export function AppIconRailFallback() {
 					variant="ghost"
 					size="icon"
 					disabled
-					className="text-muted-foreground"
+					className="text-sidebar-foreground/40"
 				>
 					<Icon icon={item.icon} />
 					<span className="sr-only">{item.title}</span>
@@ -241,7 +255,7 @@ export function AppIconRail() {
 		<>
 			<nav
 				aria-label="Primary"
-				className="hidden w-14 shrink-0 flex-col items-center gap-1 border-r py-3 md:flex [view-transition-name:app-rail]"
+				className="hidden w-14 shrink-0 flex-col items-center gap-1 border-sidebar-border bg-sidebar border-r py-3 md:flex [view-transition-name:app-rail]"
 			>
 				{items.map((item) => (
 					<RailLink

@@ -70,7 +70,6 @@ async function makeVehicle(plateSuffix: string): Promise<string> {
 		make: "Bulk",
 		model: "Test",
 		plateNumber: `${platePrefix}-${plateSuffix}`,
-		ownerId,
 	});
 	return vehicle.id;
 }
@@ -90,26 +89,6 @@ async function makeContract(
 	});
 	return contract.id;
 }
-
-describe("assigning an owner to vehicles", () => {
-	it("moves a selection of vehicles just the same way", async () => {
-		const first = await makeVehicle("owner-1");
-		const second = await makeVehicle("owner-2");
-
-		expect(
-			await vehicles.bulkAssignOwner({
-				ids: [first, second],
-				ownerId: secondOwnerId,
-			}),
-		).toEqual({ requested: 2, succeeded: 2, failed: 0, message: null });
-
-		expect(
-			await db.vehicle.count({
-				where: { id: { in: [first, second] }, ownerId: secondOwnerId },
-			}),
-		).toBe(2);
-	});
-});
 
 describe("setting the status of a selection of vehicles", () => {
 	it("moves every vehicle it was given", async () => {

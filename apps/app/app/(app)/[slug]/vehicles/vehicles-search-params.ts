@@ -3,5 +3,5 @@ import { createListSearchParams } from "@/components/data-table/list-search-para
 export const vehiclesSearchParams = createListSearchParams({
 	defaultSort: "createdAt",
 	defaultDir: "desc",
-	facetIds: ["owner", "status", "type"] as const,
+	facetIds: ["status", "type"] as const,
 });

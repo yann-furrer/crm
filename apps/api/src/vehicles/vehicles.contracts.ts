@@ -28,7 +28,6 @@ const financingTypeEnum = z.enum(
 export const vehicleListInput = listInput.extend({
 	status: z.string().default("all"),
 	type: z.string().default("all"),
-	owner: z.string().default("all"),
 });
 
 export type VehicleListInput = z.infer<typeof vehicleListInput>;
@@ -42,7 +41,6 @@ export const vehicleCreateInput = z.object({
 	plateNumber: z.string().trim().min(1, "A vehicle needs a plate number."),
 	vin: z.string().trim().nullable().optional(),
 	color: z.string().trim().nullable().optional(),
-	ownerId: z.string().min(1, "A vehicle needs an owner."),
 	dailyRateCents: optionalAmountCents,
 	currency: currencyCode.optional(),
 	mileage: z.number().int().min(0).optional(),
@@ -65,7 +63,6 @@ const vehicleUpdateInput = z.object({
 	vin: z.string().nullable().optional(),
 	color: z.string().nullable().optional(),
 	status: vehicleStatusEnum.optional(),
-	ownerId: z.string().optional(),
 	dailyRateCents: optionalAmountCents,
 	currency: currencyCode.optional(),
 	mileage: z.number().int().min(0).optional(),
@@ -94,12 +91,6 @@ export const vehicleAvailabilityInput = z.object({
 export type VehicleAvailabilityInput = z.infer<typeof vehicleAvailabilityInput>;
 
 export const vehicleBulkInput = bulkIdsInput;
-
-export const vehicleBulkOwnerInput = bulkIdsInput.extend({
-	ownerId: z.string().min(1, "A vehicle needs an owner."),
-});
-
-export type VehicleBulkOwnerInput = z.infer<typeof vehicleBulkOwnerInput>;
 
 export const vehicleBulkStatusInput = bulkIdsInput.extend({
 	status: vehicleStatusEnum,

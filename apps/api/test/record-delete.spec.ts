@@ -223,7 +223,6 @@ describe("the activity stamps a delete leaves behind", () => {
 				make: "Stamped",
 				model: "Coupe",
 				plateNumber: `STAMPED-${suffix}`,
-				ownerId: userId,
 			},
 			select: { id: true },
 		});

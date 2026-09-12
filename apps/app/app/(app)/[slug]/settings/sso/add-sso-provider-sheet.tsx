@@ -111,7 +111,7 @@ function AddSsoProviderForm() {
 
 			<SheetContent side="right">
 				<SheetHeader>
-					<SheetTitle>Add an identity provider</SheetTitle>
+					<SheetTitle>Ajouter un fournisseur d’identité</SheetTitle>
 					<SheetDescription>
 						Configure an OpenID Connect provider.
 					</SheetDescription>
@@ -133,7 +133,7 @@ function AddSsoProviderForm() {
 				>
 					<FieldGroup>
 						<Field>
-							<FieldLabel htmlFor={providerIdId}>Name</FieldLabel>
+							<FieldLabel htmlFor={providerIdId}>Nom</FieldLabel>
 							<Input
 								id={providerIdId}
 								value={values.providerId}
@@ -169,7 +169,7 @@ function AddSsoProviderForm() {
 						</Field>
 
 						<Field>
-							<FieldLabel htmlFor={domainId}>Email domain</FieldLabel>
+							<FieldLabel htmlFor={domainId}>Domaine e-mail</FieldLabel>
 							<Input
 								id={domainId}
 								value={values.domain}
@@ -236,7 +236,7 @@ function AddSsoProviderForm() {
 						Add provider
 					</Button>
 					<SheetClose asChild>
-						<Button variant="outline">Cancel</Button>
+						<Button variant="outline">Annuler</Button>
 					</SheetClose>
 				</SheetFooter>
 			</SheetContent>

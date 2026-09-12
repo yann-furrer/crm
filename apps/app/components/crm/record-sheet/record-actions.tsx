@@ -97,7 +97,7 @@ export function RecordActions({
 				<DropdownMenuTrigger asChild>
 					<Button variant="ghost" size="icon-sm" disabled={remove.isPending}>
 						<Icon icon={OverflowMenuVertical} />
-						<span className="sr-only">More actions</span>
+						<span className="sr-only">Plus d’actions</span>
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="min-w-44">
@@ -119,7 +119,7 @@ export function RecordActions({
 					</AlertDialogHeader>
 
 					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogCancel>Annuler</AlertDialogCancel>
 						<AlertDialogAction
 							variant="destructive"
 							onClick={() => remove.mutate({ id: record.id })}

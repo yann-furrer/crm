@@ -137,7 +137,7 @@ export function BulkDeleteDialog({
 				</AlertDialogHeader>
 
 				<AlertDialogFooter>
-					<AlertDialogCancel>Cancel</AlertDialogCancel>
+					<AlertDialogCancel>Annuler</AlertDialogCancel>
 					<AlertDialogAction variant="destructive" onClick={onConfirm}>
 						Delete
 					</AlertDialogAction>

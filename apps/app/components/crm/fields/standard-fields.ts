@@ -1,16 +1,7 @@
 import type { FieldEntity } from "./fields-entity";
 
 export const STANDARD_FIELDS: Record<FieldEntity, readonly string[]> = {
-	CONTACT: [
-		"First name",
-		"Last name",
-		"Title",
-		"Email",
-		"Phone",
-		"LinkedIn",
-		"GitHub",
-		"Owner",
-	],
+	CONTACT: ["First name", "Last name", "Email", "Phone", "Owner"],
 	VEHICLE: [
 		"Type",
 		"Make",

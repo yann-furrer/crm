@@ -299,7 +299,7 @@ export function CurrencySettings() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Currencies in use</CardTitle>
+					<CardTitle>Devises utilisées</CardTitle>
 					<CardDescription>
 						{unconverted.count === 0
 							? "Every record with an amount can be converted into the reporting currency."
@@ -314,7 +314,7 @@ export function CurrencySettings() {
 				</CardHeader>
 
 				{inUse.length === 0 ? (
-					<CardTableEmpty>No records have an amount yet.</CardTableEmpty>
+					<CardTableEmpty>Aucun enregistrement avec un montant.</CardTableEmpty>
 				) : (
 					<SimpleTable columns={USAGE_COLUMNS}>
 						{inUse.map((row) => (

@@ -39,6 +39,27 @@ const driverRoleEnum = z.enum(
 	Object.values(DriverRole) as [DriverRole, ...DriverRole[]],
 );
 
+const timeValue = z
+	.string()
+	.regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a valid time in HH:mm format.");
+
+const mileagePricingRule = z.object({
+	kilometers: z.number().int().positive().nullable(),
+	pricePerKmCents: amountCents,
+});
+
+const mileagePricingRules = z
+	.array(mileagePricingRule)
+	.max(20)
+	.superRefine((rules, context) => {
+		if (rules.length > 0 && rules[rules.length - 1]?.kilometers !== null) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "The last mileage tier must be open-ended.",
+			});
+		}
+	});
+
 export const rentalContractListInput = listInput.extend({
 	status: z.string().default("all"),
 	owner: z.string().default("all"),
@@ -48,6 +69,15 @@ export const rentalContractListInput = listInput.extend({
 
 export type RentalContractListInput = z.infer<typeof rentalContractListInput>;
 
+export const rentalContractPlanningInput = z.object({
+	startDate: z.string().min(1, "Choose a start date."),
+	endDate: z.string().min(1, "Choose an end date."),
+});
+
+export type RentalContractPlanningInput = z.infer<
+	typeof rentalContractPlanningInput
+>;
+
 export const rentalContractCreateInput = z.object({
 	vehicleId: z.string().min(1, "A rental contract needs a vehicle."),
 	contactId: z.string().min(1, "A rental contract needs a renter."),
@@ -55,10 +85,13 @@ export const rentalContractCreateInput = z.object({
 	channel: channelEnum.optional(),
 	startDate: z.string().min(1, "Choose a start date."),
 	endDate: z.string().min(1, "Choose an end date."),
+	pickupTime: timeValue.optional(),
+	returnTime: timeValue.optional(),
 	pricePerDayCents: amountCents,
 	currency: currencyCode.optional(),
 	mileageIncludedPerDay: z.number().int().min(0).nullable().optional(),
 	extraMileageFeePerKmCents: optionalAmountCents,
+	mileagePricingRules: mileagePricingRules.optional(),
 	depositAmountCents: amountCents,
 	depositCurrency: currencyCode.optional(),
 	depositMethod: depositMethodEnum.optional(),
@@ -72,10 +105,13 @@ export type RentalContractCreateInput = z.infer<
 const rentalContractUpdateInput = z.object({
 	startDate: z.string().min(1).optional(),
 	endDate: z.string().min(1).optional(),
+	pickupTime: timeValue.nullable().optional(),
+	returnTime: timeValue.nullable().optional(),
 	pricePerDayCents: amountCents.optional(),
 	currency: currencyCode.optional(),
 	mileageIncludedPerDay: z.number().int().min(0).nullable().optional(),
 	extraMileageFeePerKmCents: optionalAmountCents,
+	mileagePricingRules: mileagePricingRules.optional(),
 	contractDocumentUrl: z.string().trim().nullable().optional(),
 	notes: z.string().trim().nullable().optional(),
 	fields: recordFieldValues.optional(),
