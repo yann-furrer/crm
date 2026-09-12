@@ -351,7 +351,8 @@ export async function writeTimelineNote(
 	});
 	if (!contact) return null;
 
-	const author = (await db.user.findFirst({ select: { id: true } }))?.id ?? null;
+	const author =
+		(await db.user.findFirst({ select: { id: true } }))?.id ?? null;
 	if (!author) return null;
 
 	const activity = await db.activity.create({
