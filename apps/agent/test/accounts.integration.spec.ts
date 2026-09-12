@@ -51,7 +51,6 @@ beforeAll(async () => {
 			make: "Toyota",
 			model: "Hiace",
 			plateNumber: `FERNHILL-${suffix}`,
-			ownerId: userId,
 			dailyRate: 40_000,
 			currency: "USD",
 		},
@@ -183,7 +182,7 @@ async function cleanup(): Promise<void> {
 		await db.emailThread.deleteMany({ where: { contactId: contact.id } });
 		await db.rentalContract.deleteMany({ where: { contactId: contact.id } });
 		await db.vehicle.deleteMany({
-			where: { owner: { email: `rep.${suffix}@example.test` } },
+			where: { plateNumber: `FERNHILL-${suffix}` },
 		});
 		await db.contact.delete({ where: { id: contact.id } });
 	}

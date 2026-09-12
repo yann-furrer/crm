@@ -59,7 +59,6 @@ beforeAll(async () => {
 			status: VehicleStatus.RENTED,
 			dailyRate: 40_000,
 			currency: "XOF",
-			ownerId: user.id,
 		},
 		select: { id: true },
 	});
@@ -74,7 +73,6 @@ beforeAll(async () => {
 			status: VehicleStatus.RESERVED,
 			dailyRate: 25_000,
 			currency: "XOF",
-			ownerId: user.id,
 		},
 		select: { id: true },
 	});
@@ -89,7 +87,6 @@ beforeAll(async () => {
 			status: VehicleStatus.AVAILABLE,
 			dailyRate: 20_000,
 			currency: "XOF",
-			ownerId: user.id,
 		},
 		select: { id: true },
 	});
