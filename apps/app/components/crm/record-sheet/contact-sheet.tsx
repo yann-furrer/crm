@@ -2,6 +2,7 @@
 
 import CarFront from "@carbon/icons-react/es/CarFront";
 import Email from "@carbon/icons-react/es/Email";
+import Phone from "@carbon/icons-react/es/Phone";
 import type { FieldValueJson } from "@crm/db/fields";
 import {
 	Accordion,
@@ -174,7 +175,7 @@ export function ContactSheet({ contactId }: { contactId: string }) {
 			stats={
 				contact ? (
 					<DetailSheetStats>
-						<DetailSheetStat label="Email">
+						<DetailSheetStat label="Email" icon={Email}>
 							{contact.email ? (
 								<a
 									href={`mailto:${contact.email}`}
@@ -186,7 +187,7 @@ export function ContactSheet({ contactId }: { contactId: string }) {
 								<EmptyCellValue />
 							)}
 						</DetailSheetStat>
-						<DetailSheetStat label="Phone">
+						<DetailSheetStat label="Phone" icon={Phone}>
 							{contact.phone ? (
 								<a
 									href={`tel:${contact.phone}`}
