@@ -29,9 +29,7 @@ export default function ContactsPage({
 			<PageShellHeader>
 				<PageShellHeading>
 					<PageShellTitle>Clients</PageShellTitle>
-					<PageShellDescription>
-						Liste de clients
-					</PageShellDescription>
+					<PageShellDescription>Liste de clients</PageShellDescription>
 				</PageShellHeading>
 				<PageShellActions>
 					<CreateContactSheet />
