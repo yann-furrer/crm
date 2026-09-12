@@ -259,6 +259,14 @@
 			0 0 4px var(--bloom-color, currentColor),
 			0 0 10px var(--bloom-color, currentColor);
 	}
+	.rail-surface {
+		background: linear-gradient(
+			180deg,
+			color-mix(in oklch, var(--sidebar), white 4%),
+			var(--sidebar) 40%,
+			color-mix(in oklch, var(--sidebar), black 12%)
+		);
+	}
 }
 
 @layer utilities {

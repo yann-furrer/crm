@@ -1,5 +1,11 @@
 "use client";
 
+import CarFront from "@carbon/icons-react/es/CarFront";
+import CheckmarkOutline from "@carbon/icons-react/es/CheckmarkOutline";
+import Currency from "@carbon/icons-react/es/Currency";
+import Renew from "@carbon/icons-react/es/Renew";
+import Time from "@carbon/icons-react/es/Time";
+import Wallet from "@carbon/icons-react/es/Wallet";
 import { Button } from "@crm/ui/components/button";
 import type { ChartConfig } from "@crm/ui/components/chart";
 import {
@@ -8,6 +14,7 @@ import {
 	DashboardSection,
 	StatGroup,
 } from "@crm/ui/components/dashboard";
+import { Icon } from "@crm/ui/components/icon";
 import { StatCard, type StatDelta } from "@crm/ui/components/stat-card";
 import {
 	formatCount,
@@ -142,31 +149,37 @@ export function FleetDashboardOverview({ summary }: { summary: Summary }) {
 			>
 				<StatGroup>
 					<StatCard
+						icon={<Icon icon={Time} />}
 						label="Locations en cours"
 						value={formatCount(today.rentalsInProgress, "location")}
 						description="Contrats actuellement en cours"
 					/>
 					<StatCard
+						icon={<Icon icon={CarFront} />}
 						label="Véhicules mobilisés"
 						value={formatCount(today.vehiclesRented, "véhicule")}
 						description="Réservés ou en location aujourd’hui"
 					/>
 					<StatCard
+						icon={<Icon icon={Renew} />}
 						label="Retours prévus aujourd’hui"
 						value={formatCount(today.returnsDue, "retour")}
 						description="Contrats dont le retour est prévu aujourd’hui"
 					/>
 					<StatCard
+						icon={<Icon icon={CheckmarkOutline} />}
 						label="Véhicules disponibles"
 						value={formatCount(today.availableVehicles, "véhicule")}
 						description="Prêts à être attribués"
 					/>
 					<StatCard
+						icon={<Icon icon={Wallet} />}
 						label="Valeur des locations en cours"
 						value={money(today.valueInProgressCents)}
 						description="Contrats réservés ou actifs aujourd’hui"
 					/>
 					<StatCard
+						icon={<Icon icon={Currency} />}
 						label="Encaissements du jour"
 						value={money(today.paymentsCents)}
 						description="Paiements enregistrés depuis minuit"
@@ -246,7 +259,7 @@ export function FleetDashboardTrends({ summary }: { summary: Summary }) {
 					</ChartCard>
 
 					<div className="flex min-w-0 flex-col gap-4">
-						<div className="border">
+						<div className="rounded-xl border bg-card shadow-xs">
 							<StatCard
 								label="Contrats terminés ce mois-ci"
 								value={money(completedThisMonth.valueCents)}
@@ -258,7 +271,7 @@ export function FleetDashboardTrends({ summary }: { summary: Summary }) {
 								description={`${formatCount(completedThisMonth.count, "contrat")} · ${money(completedPrevMonth.valueCents)} le mois dernier`}
 							/>
 						</div>
-						<div className="border">
+						<div className="rounded-xl border bg-card shadow-xs">
 							<StatCard
 								label="Retours prévus ce mois-ci"
 								value={formatCount(dueBackThisMonth.count, "retour")}

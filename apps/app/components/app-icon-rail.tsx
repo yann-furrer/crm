@@ -213,7 +213,7 @@ export function AppIconRailFallback() {
 		<nav
 			aria-label="Primary"
 			aria-busy="true"
-			className="hidden w-14 shrink-0 flex-col items-center gap-1 border-sidebar-border bg-sidebar border-r py-3 md:flex [view-transition-name:app-rail]"
+			className="hidden w-14 shrink-0 flex-col items-center gap-1 rail-surface border-sidebar-border border-r py-3 md:flex [view-transition-name:app-rail]"
 		>
 			{ITEMS.map((item) => (
 				<Button
@@ -255,7 +255,7 @@ export function AppIconRail() {
 		<>
 			<nav
 				aria-label="Primary"
-				className="hidden w-14 shrink-0 flex-col items-center gap-1 border-sidebar-border bg-sidebar border-r py-3 md:flex [view-transition-name:app-rail]"
+				className="hidden w-14 shrink-0 flex-col items-center gap-1 rail-surface border-sidebar-border border-r py-3 md:flex [view-transition-name:app-rail]"
 			>
 				{items.map((item) => (
 					<RailLink
