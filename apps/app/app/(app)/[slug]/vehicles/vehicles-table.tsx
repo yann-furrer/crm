@@ -183,7 +183,7 @@ function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
 	const FuelIcon = FUEL_ICON[vehicle.fuelType] ?? GasStation;
 
 	return (
-		<div className="relative flex h-full min-h-[380px] flex-col overflow-hidden rounded-sm border bg-card">
+		<div className="relative flex h-full min-h-[380px] flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md">
 			<div className="shrink-0 px-4 pt-2">
 				<div className="translate-x-5 font-bold text-md uppercase leading-tight tracking-tight">
 					{vehicle.make} {vehicle.model}
