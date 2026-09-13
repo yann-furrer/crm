@@ -1,10 +1,13 @@
 "use client";
 
 import Add from "@carbon/icons-react/es/Add";
+import Calendar from "@carbon/icons-react/es/Calendar";
 import Close from "@carbon/icons-react/es/Close";
 import Edit from "@carbon/icons-react/es/Edit";
 import OverflowMenuVertical from "@carbon/icons-react/es/OverflowMenuVertical";
+import PiggyBank from "@carbon/icons-react/es/PiggyBank";
 import TrashCan from "@carbon/icons-react/es/TrashCan";
+import UserAvatar from "@carbon/icons-react/es/UserAvatar";
 import UserMultiple from "@carbon/icons-react/es/UserMultiple";
 import Wallet from "@carbon/icons-react/es/Wallet";
 import Warning from "@carbon/icons-react/es/Warning";
@@ -332,25 +335,25 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 			stats={
 				contract ? (
 					<DetailSheetStats>
-						<DetailSheetStat label="Total">
+						<DetailSheetStat label="Total" icon={Wallet}>
 							<MoneyAmount
 								amountCents={contract.totalAmountCents}
 								currency={contract.currency}
 							/>
 						</DetailSheetStat>
-						<DetailSheetStat label="Caution">
+						<DetailSheetStat label="Caution" icon={PiggyBank}>
 							<StatusIndicator
 								tone={depositTone(contract.depositStatus)}
 								label={depositLabel(contract.depositStatus)}
 							/>
 						</DetailSheetStat>
-						<DetailSheetStat label="Dates">
+						<DetailSheetStat label="Dates" icon={Calendar}>
 							<span className="text-muted-foreground">
 								<LocalDay date={contract.startDate} /> –{" "}
 								<LocalDay date={contract.endDate} />
 							</span>
 						</DetailSheetStat>
-						<DetailSheetStat label="Vendeur">
+						<DetailSheetStat label="Vendeur" icon={UserAvatar}>
 							<OwnerCell owner={contract.owner} />
 						</DetailSheetStat>
 					</DetailSheetStats>
