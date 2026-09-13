@@ -148,7 +148,9 @@ export function DetailSheetHeader({
 
 export function DetailSheetStats({ children }: { children: ReactNode }) {
 	return (
-		<dl className="flex shrink-0 divide-x border-b bg-muted/40">{children}</dl>
+		<dl className="flex shrink-0 divide-x divide-primary-foreground/15 bg-primary">
+			{children}
+		</dl>
 	);
 }
 
@@ -163,11 +165,11 @@ export function DetailSheetStat({
 }) {
 	return (
 		<div className={cn("flex min-w-0 flex-1 flex-col gap-1 py-2.5", GUTTER)}>
-			<dt className="flex items-center gap-1.5 truncate text-muted-foreground text-xs/5">
+			<dt className="flex items-center gap-1.5 truncate text-primary-foreground/70 text-xs/5">
 				{icon ? <Icon icon={icon} className="size-3.5" /> : null}
 				{label}
 			</dt>
-			<dd className="min-w-0 truncate font-medium text-foreground text-sm/5">
+			<dd className="min-w-0 truncate font-medium text-primary-foreground text-sm/5">
 				{children}
 			</dd>
 		</div>

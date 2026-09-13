@@ -283,6 +283,7 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 									VEHICLE_STATUS_OPTIONS.find((o) => o.value === vehicle.status)
 										?.label ?? vehicle.status
 								}
+								className="text-primary-foreground"
 							/>
 						</DetailSheetStat>
 						<DetailSheetStat label="Tarif journalier" icon={Currency}>

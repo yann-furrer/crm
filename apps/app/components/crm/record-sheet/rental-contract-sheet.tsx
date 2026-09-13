@@ -335,10 +335,11 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 							<StatusIndicator
 								tone={depositTone(contract.depositStatus)}
 								label={depositLabel(contract.depositStatus)}
+								className="text-primary-foreground"
 							/>
 						</DetailSheetStat>
 						<DetailSheetStat label="Dates" icon={Calendar}>
-							<span className="text-muted-foreground">
+							<span className="text-primary-foreground/80">
 								<LocalDay date={contract.startDate} /> –{" "}
 								<LocalDay date={contract.endDate} />
 							</span>
