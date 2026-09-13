@@ -1741,15 +1741,55 @@ function InspectionForm({
 
 	const create = useMutation(
 		trpc.vehicleInspections.create.mutationOptions({
-			onSuccess: async () => {
-				await cache.rentalContract(contract.id);
-				toast.success(
-					type === "CHECK_OUT" ? "Pickup recorded." : "Return recorded.",
-				);
-			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);
+
+	const recordPickup = useMutation(
+		trpc.rentalContracts.recordPickup.mutationOptions({
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const recordReturn = useMutation(
+		trpc.rentalContracts.recordReturn.mutationOptions({
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+
+	const pending =
+		create.isPending || recordPickup.isPending || recordReturn.isPending;
+
+	const submit = async () => {
+		const mileage = Number(odometer) || 0;
+		try {
+			await create.mutateAsync({
+				rentalContractId: contract.id,
+				type,
+				odometer: mileage,
+				fuelLevel: fuelLevel as never,
+			});
+			if (type === "CHECK_OUT") {
+				await recordPickup.mutateAsync({
+					id: contract.id,
+					mileageAtPickup: mileage,
+					fuelLevelAtPickup: fuelLevel as never,
+				});
+			} else {
+				await recordReturn.mutateAsync({
+					id: contract.id,
+					mileageAtReturn: mileage,
+					fuelLevelAtReturn: fuelLevel as never,
+				});
+			}
+			await cache.rentalContract(contract.id);
+			toast.success(
+				type === "CHECK_OUT" ? "Départ enregistré." : "Retour enregistré.",
+			);
+		} catch {
+			// Individual mutations already surface their own error toast.
+		}
+	};
 
 	return (
 		<div className="flex flex-wrap items-end gap-2">
@@ -1780,15 +1820,8 @@ function InspectionForm({
 			<Button
 				variant="outline"
 				size="sm"
-				disabled={create.isPending || odometer.trim() === ""}
-				onClick={() =>
-					create.mutate({
-						rentalContractId: contract.id,
-						type,
-						odometer: Number(odometer) || 0,
-						fuelLevel: fuelLevel as never,
-					})
-				}
+				disabled={pending || odometer.trim() === ""}
+				onClick={() => void submit()}
 			>
 				{type === "CHECK_OUT"
 					? "Enregistrer le départ"
