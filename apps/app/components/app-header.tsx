@@ -38,12 +38,12 @@ export function AppHeader({ user }: { user: User }) {
 	const label = workspaceLabel(workspace.data?.name);
 
 	return (
-		<header className="rail-surface flex h-12 shrink-0 items-center gap-2 border-sidebar-border border-b px-3 text-sidebar-foreground [view-transition-name:app-header]">
+		<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 [view-transition-name:app-header]">
 			<div className="flex shrink-0 items-center gap-1">
 				<Button
 					variant="ghost"
 					size="icon"
-					className="text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
+					className="md:hidden"
 					aria-label="Open navigation"
 					onClick={() => setMobileNavOpen(true)}
 				>
@@ -52,7 +52,7 @@ export function AppHeader({ user }: { user: User }) {
 				<Link
 					href={workspaceUrl()}
 					aria-label="Homepage"
-					className="hidden size-8 items-center justify-center text-sidebar-foreground md:flex"
+					className="hidden size-8 items-center justify-center text-foreground md:flex"
 				>
 					<Logo className="size-5" />
 				</Link>
@@ -77,15 +77,15 @@ export function AppHeader({ user }: { user: User }) {
 export function AppHeaderFallback() {
 	return (
 		<header
-			className="rail-surface flex h-12 shrink-0 items-center gap-2 border-sidebar-border border-b px-3 text-sidebar-foreground [view-transition-name:app-header]"
+			className="flex h-12 shrink-0 items-center gap-2 border-b px-3 [view-transition-name:app-header]"
 			aria-busy="true"
 		>
 			<div className="flex shrink-0 items-center gap-1">
-				<span className="hidden size-8 items-center justify-center text-sidebar-foreground md:flex">
+				<span className="hidden size-8 items-center justify-center text-foreground md:flex">
 					<Logo className="size-5" />
 				</span>
 				<Separator orientation="vertical" className="mx-1 h-5 bg-transparent" />
-				<Skeleton className="h-4 w-24 bg-sidebar-accent" />
+				<Skeleton className="h-4 w-24" />
 			</div>
 
 			<div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -111,7 +111,7 @@ function UserMenu({ user, onSignOut }: { user: User; onSignOut: () => void }) {
 					variant="ghost"
 					size="icon"
 					aria-label="Account menu"
-					className="hover:bg-sidebar-accent aria-expanded:bg-sidebar-accent"
+					className="hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
 				>
 					<Avatar className="size-7">
 						{user.image && <AvatarImage alt={user.name} src={user.image} />}
