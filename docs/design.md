@@ -39,12 +39,16 @@ maintaining. The single exception is `--ring`, which lightens in dark: a fill
 carries the brand, but a ring only has to be seen, and `#006B4F` is too close to
 the dark background to register.
 
-### The rail
+### The chrome
 
-The `--sidebar-*` tokens are reserved for the app icon rail (`AppIconRail`)
-and hold the **same forest-green values in both themes** — the rail is the
-app's spine, not a themed surface, so it does not flip with light/dark mode
-the way `--background` does. It is the one place besides `primary` and
-`destructive` allowed to be a dark fill; do not reuse `--sidebar-*` for
-anything else, and do not give any other component a hand-rolled dark-green
+The `--sidebar-*` tokens are reserved for the app's persistent chrome — the
+icon rail (`AppIconRail`) and the top header (`AppHeader`) — and hold the
+**same forest-green values in both themes**: the chrome is the app's frame,
+not a themed surface, so it does not flip with light/dark mode the way
+`--background` does. Together the rail and header form one continuous dark
+band around the white (or dark-canvas) content area; that continuity is the
+point, so a chrome element never gets its own shade of green — it pulls from
+`--sidebar-*` like the rest. It is the one place besides `primary` and
+`destructive` allowed to be a dark fill; do not reuse `--sidebar-*` outside
+the chrome, and do not give any other component a hand-rolled dark-green
 background — that is a new colour, not a reuse of this one.
