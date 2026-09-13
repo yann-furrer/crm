@@ -307,7 +307,7 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 				) : undefined
 			}
 			actions={
-				contract ? (
+			contract ? (
 					<>
 						<RentalStatusMenu
 							contractId={contract.id}
@@ -494,6 +494,75 @@ function MileageTiers({
 	);
 }
 
+function daysBetween(start: string, end: string): number {
+	const diff = new Date(end).getTime() - new Date(start).getTime();
+	return Math.max(1, Math.ceil(diff / (24 * 60 * 60 * 1000)));
+}
+
+function ContractCostSummary({
+	contract,
+	currency,
+}: {
+	contract: RentalContract;
+	currency: string;
+}) {
+	const days = daysBetween(contract.startDate, contract.endDate);
+	const rentalAmountCents = (contract.pricePerDayCents ?? 0) * days;
+	const extraMileageAmountCents = contract.extraMileageAmountCents;
+	const depositSettled = contract.depositStatus !== "HELD";
+	const retainedDepositCents = depositRetainedCents(contract);
+
+	const Line = ({
+		label,
+		amountCents,
+		muted = true,
+	}: {
+		label: string;
+		amountCents: number;
+		muted?: boolean;
+	}) => (
+		<div className="flex items-center justify-between gap-4 text-sm">
+			<span className={muted ? "text-muted-foreground" : "font-medium"}>
+				{label}
+			</span>
+			<span className={cn("tabular-nums", !muted && "font-medium")}>
+				{formatMoney(amountCents, currency)}
+			</span>
+		</div>
+	);
+
+	return (
+		<div className="space-y-1.5">
+			<Line
+				label={`Location (${days} jour${days > 1 ? "s" : ""} × ${formatMoney(contract.pricePerDayCents ?? 0, currency)})`}
+				amountCents={rentalAmountCents}
+			/>
+			{extraMileageAmountCents !== null && extraMileageAmountCents !== 0 ? (
+				<Line
+					label="Kilométrage supplémentaire"
+					amountCents={extraMileageAmountCents}
+				/>
+			) : null}
+			{retainedDepositCents > 0 ? (
+				<Line label="Caution retenue" amountCents={retainedDepositCents} />
+			) : null}
+			<div className="border-t pt-1.5">
+				<Line
+					label="Total"
+					amountCents={contract.totalAmountCents ?? 0}
+					muted={false}
+				/>
+			</div>
+			{!depositSettled && extraMileageAmountCents === null ? (
+				<p className="pt-1 text-muted-foreground text-xs">
+					Le kilométrage supplémentaire et la caution ne sont pas encore
+					définitifs : ils s’ajoutent au retour et au règlement de la caution.
+				</p>
+			) : null}
+		</div>
+	);
+}
+
 function ContractOverview({ contract }: { contract: RentalContract }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
@@ -545,6 +614,10 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 						</DetailSheetProperty>
 					</DetailSheetProperties>
 				) : null}
+			</DetailSheetSection>
+
+			<DetailSheetSection title="Récapitulatif">
+				<ContractCostSummary contract={contract} currency={currency} />
 			</DetailSheetSection>
 
 			<DetailSheetSection
