@@ -55,6 +55,8 @@ export function InlineField({
 	render,
 	provenance,
 	suggestion,
+	className,
+	bare = false,
 }: {
 	label: string;
 	value: string | null;
@@ -65,6 +67,9 @@ export function InlineField({
 	render?: (value: string) => React.ReactNode;
 	provenance?: React.ReactNode;
 	suggestion?: React.ReactNode;
+	className?: string;
+	/** Skip the label column and outer row grid — for grouping under a shared label. */
+	bare?: boolean;
 }) {
 	const id = useId();
 	const [editing, setEditing] = useState(false);
@@ -86,6 +91,7 @@ export function InlineField({
 			autoFocus
 			value={draft}
 			placeholder={placeholder}
+			className={className}
 			onChange={(event) => setDraft(event.target.value)}
 			onBlur={commit}
 			onKeyDown={(event) => {
@@ -103,7 +109,7 @@ export function InlineField({
 		<Button
 			variant="ghost"
 			size="sm"
-			className={CONTROL}
+			className={cn(CONTROL, className)}
 			disabled={saving}
 			onClick={() => {
 				setDraft(value ?? "");
@@ -129,6 +135,17 @@ export function InlineField({
 		) : (
 			control
 		);
+
+	if (bare) {
+		return (
+			<>
+				<label htmlFor={id} className="sr-only">
+					{label}
+				</label>
+				{body}
+			</>
+		);
+	}
 
 	if (!suggestion) {
 		return (
@@ -302,30 +319,50 @@ export function InlineDateField({
 	onSave,
 	saving = false,
 	placeholder = "—",
+	className,
+	bare = false,
 }: {
 	label: string;
 	value: string | null;
 	onSave: (next: string) => void;
 	saving?: boolean;
 	placeholder?: string;
+	className?: string;
+	/** Skip the label column and outer row grid — for grouping under a shared label. */
+	bare?: boolean;
 }) {
 	const id = useId();
+
+	const control = (
+		<div className={cn("flex min-w-0 items-center gap-1.5", className)}>
+			<DatePicker
+				id={id}
+				variant="ghost"
+				value={value?.slice(0, 10) ?? null}
+				placeholder={placeholder}
+				onChange={onSave}
+			/>
+			{saving ? <Spinner /> : null}
+		</div>
+	);
+
+	if (bare) {
+		return (
+			<>
+				<label htmlFor={id} className="sr-only">
+					{label}
+				</label>
+				{control}
+			</>
+		);
+	}
 
 	return (
 		<div className={ROW}>
 			<label htmlFor={id} className={LABEL}>
 				{label}
 			</label>
-			<div className="flex min-w-0 items-center gap-1.5">
-				<DatePicker
-					id={id}
-					variant="ghost"
-					value={value?.slice(0, 10) ?? null}
-					placeholder={placeholder}
-					onChange={onSave}
-				/>
-				{saving ? <Spinner /> : null}
-			</div>
+			{control}
 		</div>
 	);
 }

@@ -11,7 +11,7 @@ import UserAvatar from "@carbon/icons-react/es/UserAvatar";
 import UserMultiple from "@carbon/icons-react/es/UserMultiple";
 import Wallet from "@carbon/icons-react/es/Wallet";
 import Warning from "@carbon/icons-react/es/Warning";
-import { CURRENCIES, normalizeCurrency } from "@crm/db/currency";
+import { normalizeCurrency } from "@crm/db/currency";
 import type { FieldValueJson } from "@crm/db/fields";
 import {
 	AlertDialog,
@@ -39,7 +39,6 @@ import {
 	DropdownMenuTrigger,
 } from "@crm/ui/components/dropdown-menu";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
-import { EntityLogo } from "@crm/ui/components/entity-logo";
 import { Field, FieldLabel } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
@@ -75,7 +74,6 @@ import { FieldsCog, RecordFields } from "@/components/crm/fields/record-fields";
 import {
 	InlineDateField,
 	InlineField,
-	InlineSelectField,
 	InlineTextArea,
 	savingValue,
 } from "@/components/crm/inline-field";
@@ -94,6 +92,8 @@ import {
 	DetailSheetStat,
 	DetailSheetStats,
 	type DetailSheetTab,
+	PROPERTY_LABEL,
+	PROPERTY_ROW,
 } from "@/components/detail-sheet";
 import { LocalDateTime, LocalDay } from "@/components/local-date-time";
 import { savingField } from "@/lib/pending-field";
@@ -113,11 +113,6 @@ type ContractIncidentRow = {
 	description: string;
 	insuranceStatus: string;
 };
-
-const CURRENCY_OPTIONS = CURRENCIES.map((entry) => ({
-	value: entry.code,
-	label: `${entry.code} · ${entry.name}`,
-}));
 
 const FUEL_OPTIONS = [
 	{ value: "FULL", label: "Plein" },
@@ -154,7 +149,7 @@ const PAYMENT_STATUS_OPTIONS = [
 const DRIVER_COLUMNS: SimpleTableColumn[] = [
 	{ id: "name", header: "Nom", width: "w-[36%]", className: "pl-5" },
 	{ id: "role", header: "Rôle", width: "w-[28%]" },
-	{ id: "remove", srLabel: "Remove", width: "w-10" },
+	{ id: "remove", srLabel: "Retirer", width: "w-10" },
 ];
 
 const PAYMENT_COLUMNS: SimpleTableColumn[] = [
@@ -296,7 +291,7 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 			title={
 				contract
 					? `${contract.vehicle.make} ${contract.vehicle.model}`
-					: "Rental contract"
+					: "Contrat de location"
 			}
 			description={
 				contract ? (
@@ -310,11 +305,6 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 						{contactName(contract.contact)}
 					</button>
 				) : undefined
-			}
-			media={
-				contract ? (
-					<EntityLogo name={contract.vehicle.plateNumber} size="lg" />
-				) : null
 			}
 			actions={
 				contract ? (
@@ -429,34 +419,52 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 				action={<FieldsCog kind="rentalContract" />}
 			>
 				<DetailSheetProperties>
-					<InlineDateField
-						label="Date de départ"
-						value={contract.startDate}
-						saving={isSaving("startDate")}
-						onSave={(next) => next && save({ startDate: next })}
-					/>
-					<InlineDateField
-						label="Date de retour"
-						value={contract.endDate}
-						saving={isSaving("endDate")}
-						onSave={(next) => next && save({ endDate: next })}
-					/>
-					<InlineField
-						label="Heure de départ"
-						value={contract.pickupTime}
-						type="time"
-						placeholder="09:00"
-						saving={isSaving("pickupTime")}
-						onSave={(next) => save({ pickupTime: next || null })}
-					/>
-					<InlineField
-						label="Heure de retour"
-						value={contract.returnTime}
-						type="time"
-						placeholder="18:00"
-						saving={isSaving("returnTime")}
-						onSave={(next) => save({ returnTime: next || null })}
-					/>
+					<div className={cn(PROPERTY_ROW, "items-center")}>
+						<span className={PROPERTY_LABEL}>Départ</span>
+						<div className="flex min-w-0 items-center gap-2">
+							<InlineDateField
+								label="Date de départ"
+								value={contract.startDate}
+								saving={isSaving("startDate")}
+								onSave={(next) => next && save({ startDate: next })}
+								className="max-w-32"
+								bare
+							/>
+							<InlineField
+								label="Heure de départ"
+								value={contract.pickupTime}
+								type="time"
+								placeholder="09:00"
+								saving={isSaving("pickupTime")}
+								onSave={(next) => save({ pickupTime: next || null })}
+								className="max-w-24"
+								bare
+							/>
+						</div>
+					</div>
+					<div className={cn(PROPERTY_ROW, "items-center")}>
+						<span className={PROPERTY_LABEL}>Retour</span>
+						<div className="flex min-w-0 items-center gap-2">
+							<InlineDateField
+								label="Date de retour"
+								value={contract.endDate}
+								saving={isSaving("endDate")}
+								onSave={(next) => next && save({ endDate: next })}
+								className="max-w-32"
+								bare
+							/>
+							<InlineField
+								label="Heure de retour"
+								value={contract.returnTime}
+								type="time"
+								placeholder="18:00"
+								saving={isSaving("returnTime")}
+								onSave={(next) => save({ returnTime: next || null })}
+								className="max-w-24"
+								bare
+							/>
+						</div>
+					</div>
 					<InlineField
 						label="Prix par jour"
 						value={String((contract.pricePerDayCents ?? 0) / 100)}
@@ -472,12 +480,7 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 						render={(value) =>
 							formatMoney(Math.round(Number(value) * 100), currency)
 						}
-					/>
-					<InlineSelectField
-						label="Devise"
-						value={currency}
-						options={CURRENCY_OPTIONS}
-						onSave={(next) => save({ currency: next })}
+						className="max-w-32"
 					/>
 					<InlineField
 						label="Kilomètres inclus / jour"
@@ -490,6 +493,8 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 						onSave={(next) =>
 							save({ mileageIncludedPerDay: next ? Number(next) : null })
 						}
+						render={(value) => `${value} km`}
+						className="max-w-28"
 					/>
 					<RecordFields
 						fields={contract.fields}
@@ -502,7 +507,9 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 			<DetailSheetSection title="Kilométrage supplémentaire">
 				<DetailSheetProperties>
 					<DetailSheetProperty label="Kilomètres inclus par jour">
-						{contract.mileageIncludedPerDay ?? "Aucun forfait"}
+						{contract.mileageIncludedPerDay === null
+							? "Aucun forfait"
+							: `${contract.mileageIncludedPerDay} km`}
 					</DetailSheetProperty>
 					<DetailSheetProperty label="Montant calculé">
 						{contract.extraMileageAmountCents === null
@@ -1438,7 +1445,7 @@ function ContractIncidentForm({
 			onSubmit={() => void submit()}
 		>
 			<Field className="sm:col-span-2">
-				<FieldLabel htmlFor={descriptionId}>What happened</FieldLabel>
+				<FieldLabel htmlFor={descriptionId}>Que s’est-il passé ?</FieldLabel>
 				<Textarea
 					id={descriptionId}
 					autoFocus
@@ -1459,8 +1466,8 @@ function ContractIncidentForm({
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="NONE">Aucune retenue</SelectItem>
-						<SelectItem value="PARTIAL">Partially forfeited</SelectItem>
-						<SelectItem value="FULL">Fully forfeited</SelectItem>
+						<SelectItem value="PARTIAL">Partiellement perdue</SelectItem>
+						<SelectItem value="FULL">Totalement perdue</SelectItem>
 					</SelectContent>
 				</Select>
 			</Field>
@@ -1469,14 +1476,14 @@ function ContractIncidentForm({
 				<Input
 					id="deposit-deducted"
 					inputMode="decimal"
-					placeholder={`Amount in ${depositCurrency}`}
+					placeholder={`Montant en ${depositCurrency}`}
 					value={depositDeductedAmount}
 					onChange={(event) => setDepositDeductedAmount(event.target.value)}
 				/>
 			</Field>
 			<Field className="sm:col-span-2">
 				<FieldLabel htmlFor="incident-document">
-					Photos or police report
+					Photos ou constat de police
 				</FieldLabel>
 				<Input
 					id="incident-document"
@@ -1487,7 +1494,7 @@ function ContractIncidentForm({
 			</Field>
 			{document?.type === "application/pdf" ? (
 				<Field>
-					<FieldLabel>Document type</FieldLabel>
+					<FieldLabel>Type de document</FieldLabel>
 					<Select value={documentType} onValueChange={setDocumentType}>
 						<SelectTrigger className="w-full">
 							<SelectValue />
@@ -1509,19 +1516,19 @@ function ContractIncidentForm({
 						<Input
 							id="invoice-amount"
 							inputMode="decimal"
-							placeholder={`Amount in ${depositCurrency}`}
+							placeholder={`Montant en ${depositCurrency}`}
 							value={documentAmount}
 							onChange={(event) => setDocumentAmount(event.target.value)}
 						/>
 					</Field>
 					<Field>
 						<FieldLabel htmlFor="insurance-reimbursed">
-							Insurance reimbursed
+							Remboursé par l’assurance
 						</FieldLabel>
 						<Input
 							id="insurance-reimbursed"
 							inputMode="decimal"
-							placeholder={`Amount in ${depositCurrency}`}
+							placeholder={`Montant en ${depositCurrency}`}
 							value={insuranceReimbursedAmount}
 							onChange={(event) =>
 								setInsuranceReimbursedAmount(event.target.value)

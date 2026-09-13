@@ -43,7 +43,7 @@ export const SECTION_TITLE =
 
 export const PROPERTY_ROW = "grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2";
 
-export const PROPERTY_LABEL = "truncate text-muted-foreground text-xs";
+export const PROPERTY_LABEL = "text-muted-foreground text-xs";
 
 const PROPERTY_CELL = "border border-transparent py-1";
 
@@ -261,7 +261,17 @@ export function DetailSheetSection({
 		>
 			{title || action ? (
 				<div className="flex h-5 items-center justify-between gap-3">
-					{title ? <h3 className={SECTION_TITLE}>{title}</h3> : <span />}
+					{title ? (
+						<h3 className={cn(SECTION_TITLE, "flex items-center gap-1.5")}>
+							<span
+								aria-hidden
+								className="size-1.5 shrink-0 rounded-full bg-primary"
+							/>
+							{title}
+						</h3>
+					) : (
+						<span />
+					)}
 					{action}
 				</div>
 			) : null}
