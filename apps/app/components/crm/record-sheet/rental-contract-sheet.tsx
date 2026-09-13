@@ -361,6 +361,138 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 	);
 }
 
+type MileageTier = { kilometers: number | null; pricePerKmCents: number };
+type MileageTierDraft = MileageTier & { localId: string };
+
+function MileageTiers({
+	rules,
+	currency,
+	saving,
+	onSave,
+}: {
+	rules: MileageTier[];
+	currency: string;
+	saving: boolean;
+	onSave: (rules: MileageTier[]) => void;
+}) {
+	const [tiers, setTiers] = useState<MileageTierDraft[]>(() =>
+		rules.map((rule) => ({ ...rule, localId: crypto.randomUUID() })),
+	);
+
+	const commit = (next: MileageTierDraft[]) => {
+		setTiers(next);
+		onSave(next.map(({ localId: _localId, ...rule }) => rule));
+	};
+
+	const updateTier = (localId: string, patch: Partial<MileageTier>) => {
+		commit(
+			tiers.map((tier) =>
+				tier.localId === localId ? { ...tier, ...patch } : tier,
+			),
+		);
+	};
+
+	const removeTier = (localId: string) => {
+		commit(tiers.filter((tier) => tier.localId !== localId));
+	};
+
+	const addTier = () => {
+		if (tiers.length === 0) {
+			commit([
+				{ localId: crypto.randomUUID(), kilometers: null, pricePerKmCents: 0 },
+			]);
+			return;
+		}
+		const last = tiers[tiers.length - 1];
+		const previousBound =
+			tiers.length > 1 ? tiers[tiers.length - 2]?.kilometers : null;
+		commit([
+			...tiers.slice(0, -1),
+			{
+				localId: crypto.randomUUID(),
+				kilometers: (previousBound ?? 0) + 50,
+				pricePerKmCents: last?.pricePerKmCents ?? 0,
+			},
+			{ localId: crypto.randomUUID(), kilometers: null, pricePerKmCents: 0 },
+		]);
+	};
+
+	return (
+		<div className="space-y-2">
+			{tiers.length === 0 ? (
+				<p className="text-muted-foreground text-xs">
+					Aucune tranche : le tarif kilométrique simple s’applique.
+				</p>
+			) : (
+				<div className="space-y-1.5">
+					{tiers.map((tier, index) => {
+						const isLast = index === tiers.length - 1;
+						return (
+							<div key={tier.localId} className="flex items-center gap-1.5">
+								{isLast ? (
+									<span className="w-28 shrink-0 text-muted-foreground text-xs">
+										Au-delà
+									</span>
+								) : (
+									<span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+										Jusqu’à
+										<Input
+											type="number"
+											inputMode="numeric"
+											min={1}
+											defaultValue={tier.kilometers ?? ""}
+											className="h-7 max-w-16 px-1.5 text-xs"
+											onBlur={(event) => {
+												const value = Number.parseInt(event.target.value, 10);
+												if (Number.isFinite(value) && value > 0) {
+													updateTier(tier.localId, { kilometers: value });
+												}
+											}}
+										/>
+										km
+									</span>
+								)}
+								<Input
+									type="number"
+									inputMode="decimal"
+									min={0}
+									step="0.01"
+									defaultValue={tier.pricePerKmCents / 100}
+									className="h-7 max-w-20 px-1.5 text-xs"
+									onBlur={(event) => {
+										const value = Number.parseFloat(event.target.value);
+										if (Number.isFinite(value) && value >= 0) {
+											updateTier(tier.localId, {
+												pricePerKmCents: Math.round(value * 100),
+											});
+										}
+									}}
+								/>
+								<span className="shrink-0 text-muted-foreground text-xs">
+									{currency}/km
+								</span>
+								<Button
+									variant="ghost"
+									size="icon-xs"
+									disabled={saving}
+									onClick={() => removeTier(tier.localId)}
+								>
+									<Icon icon={TrashCan} />
+									<span className="sr-only">Supprimer cette tranche</span>
+								</Button>
+							</div>
+						);
+					})}
+				</div>
+			)}
+			<Button variant="outline" size="xs" disabled={saving} onClick={addTier}>
+				<Icon icon={Add} data-icon="inline-start" />
+				Ajouter une tranche
+			</Button>
+		</div>
+	);
+}
+
 function ContractOverview({ contract }: { contract: RentalContract }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
@@ -506,40 +638,18 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 
 			<DetailSheetSection title="Kilométrage supplémentaire">
 				<DetailSheetProperties>
-					<DetailSheetProperty label="Kilomètres inclus par jour">
-						{contract.mileageIncludedPerDay === null
-							? "Aucun forfait"
-							: `${contract.mileageIncludedPerDay} km`}
-					</DetailSheetProperty>
 					<DetailSheetProperty label="Montant calculé">
 						{contract.extraMileageAmountCents === null
 							? "À calculer à la restitution"
 							: formatMoney(contract.extraMileageAmountCents, currency)}
 					</DetailSheetProperty>
 				</DetailSheetProperties>
-				{contract.mileagePricingRules.length > 0 ? (
-					<SimpleTable
-						columns={[
-							{ id: "kilometers", header: "Tranche", width: "w-1/2" },
-							{ id: "price", header: "Prix / km", width: "w-1/2" },
-						]}
-					>
-						{contract.mileagePricingRules.map((rule) => (
-							<SimpleTableRow
-								key={`${contract.id}-mileage-rule-${rule.kilometers ?? "open"}-${rule.pricePerKmCents}`}
-							>
-								<TableCell>
-									{rule.kilometers === null
-										? "Puis suivants"
-										: `${rule.kilometers} km`}
-								</TableCell>
-								<TableCell>
-									{formatMoney(rule.pricePerKmCents, currency)}
-								</TableCell>
-							</SimpleTableRow>
-						))}
-					</SimpleTable>
-				) : null}
+				<MileageTiers
+					rules={contract.mileagePricingRules}
+					currency={currency}
+					saving={isSaving("mileagePricingRules")}
+					onSave={(mileagePricingRules) => save({ mileagePricingRules })}
+				/>
 			</DetailSheetSection>
 
 			<DetailSheetSection title="Caution">
