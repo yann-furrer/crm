@@ -965,6 +965,7 @@ model Vehicle {
 enum FinancingType {
   LOAN
   LEASING
+  PURCHASE
 }
 
 enum ChargeFrequency {
@@ -988,6 +989,7 @@ model VehicleFinancing {
   fxRateAt     DateTime?
 
   interestRate Decimal? @db.Decimal(6, 3)
+  fiscalDepreciationRate Decimal? @db.Decimal(6, 3)
   termMonths   Int?
   startDate    DateTime
 

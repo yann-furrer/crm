@@ -2,7 +2,6 @@ import { FinancingType, FuelType, VehicleStatus, VehicleType } from "@crm/db";
 import { z } from "zod";
 import { bulkIdsInput } from "../crm/bulk";
 import {
-	amountCents,
 	currencyCode,
 	optionalAmountCents,
 } from "../currency/currency.contracts";
@@ -98,16 +97,73 @@ export const vehicleBulkStatusInput = bulkIdsInput.extend({
 
 export type VehicleBulkStatusInput = z.infer<typeof vehicleBulkStatusInput>;
 
-export const vehicleSetFinancingInput = z.object({
-	vehicleId: z.string(),
-	type: financingTypeEnum,
-	principalAmountCents: optionalAmountCents,
-	monthlyPaymentCents: amountCents,
-	currency: currencyCode.optional(),
-	interestRate: z.number().min(0).max(100).nullable().optional(),
-	termMonths: z.number().int().min(1).max(600).nullable().optional(),
-	startDate: z.string().min(1, "Financing needs a start date."),
-});
+export const vehicleSetFinancingInput = z
+	.object({
+		vehicleId: z.string(),
+		type: financingTypeEnum,
+		principalAmountCents: optionalAmountCents,
+		monthlyPaymentCents: optionalAmountCents,
+		currency: currencyCode.optional(),
+		interestRate: z.number().min(0).max(100).nullable().optional(),
+		fiscalDepreciationRate: z
+			.number()
+			.positive()
+			.max(100)
+			.nullable()
+			.optional(),
+		termMonths: z.number().int().min(1).max(600).nullable().optional(),
+		startDate: z.string().min(1, "Financing needs a start date."),
+	})
+	.superRefine((input, context) => {
+		if (input.type === FinancingType.PURCHASE) {
+			if (
+				input.principalAmountCents === null ||
+				input.principalAmountCents === undefined
+			) {
+				context.addIssue({
+					code: "custom",
+					path: ["principalAmountCents"],
+					message: "Un achat comptant nécessite un prix d’achat.",
+				});
+			}
+			if (!input.termMonths) {
+				context.addIssue({
+					code: "custom",
+					path: ["termMonths"],
+					message: "Un achat comptant nécessite une durée d’amortissement.",
+				});
+			}
+			return;
+		}
+		if (input.type === FinancingType.LEASING && input.fiscalDepreciationRate) {
+			context.addIssue({
+				code: "custom",
+				path: ["fiscalDepreciationRate"],
+				message: "Le leasing ne peut pas être amorti fiscalement.",
+			});
+		}
+		if (
+			input.monthlyPaymentCents === null ||
+			input.monthlyPaymentCents === undefined
+		) {
+			context.addIssue({
+				code: "custom",
+				path: ["monthlyPaymentCents"],
+				message: "Ce financement nécessite une mensualité.",
+			});
+		}
+		if (
+			input.type === FinancingType.LOAN &&
+			(input.principalAmountCents === null ||
+				input.principalAmountCents === undefined)
+		) {
+			context.addIssue({
+				code: "custom",
+				path: ["principalAmountCents"],
+				message: "Un crédit nécessite un capital financé.",
+			});
+		}
+	});
 
 export type VehicleSetFinancingInput = z.infer<typeof vehicleSetFinancingInput>;
 

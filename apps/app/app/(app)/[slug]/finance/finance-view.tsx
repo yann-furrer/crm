@@ -92,6 +92,12 @@ export function FinanceView() {
 			color: "var(--chart-4)",
 		},
 		{
+			key: "purchase",
+			label: "Achats comptants",
+			value: expenses.purchaseCents,
+			color: "var(--chart-1)",
+		},
+		{
 			key: "charges",
 			label: "Charges diverses",
 			value: expenses.chargesCents,
@@ -134,6 +140,11 @@ export function FinanceView() {
 					<StatCard
 						label="Dépenses depuis le début"
 						value={money(data.lifetime.expensesCents)}
+					/>
+					<StatCard
+						label="Seuil de rentabilité"
+						value={money(data.lifetime.minimumRevenueToBeProfitableCents)}
+						description="Revenus minimum pour couvrir tous les coûts"
 					/>
 					<StatCard
 						label="Net"
@@ -218,7 +229,7 @@ export function FinanceView() {
 
 			<DashboardSection
 				title="Poids du financement"
-				description="Part du crédit et du leasing dans les charges totales"
+				description="Part du crédit, du leasing et des achats dans les charges totales"
 			>
 				<StatGroup>
 					<StatCard
@@ -230,6 +241,16 @@ export function FinanceView() {
 						label="Leasing"
 						value={money(expenses.leasingCents)}
 						description={`${ratio(expenses.leasingCents, data.lifetime.expensesCents)} des charges`}
+					/>
+					<StatCard
+						label="Achats comptants"
+						value={money(expenses.purchaseCents)}
+						description={`${ratio(expenses.purchaseCents, data.lifetime.expensesCents)} des charges`}
+					/>
+					<StatCard
+						label="Amortissement crédit"
+						value={money(expenses.amortizationCents)}
+						description={`${ratio(expenses.amortizationCents, data.lifetime.expensesCents)} des charges`}
 					/>
 					<StatCard
 						label="Financement total"

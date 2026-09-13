@@ -158,6 +158,7 @@ export class VehiclesService {
 						currency: true,
 						baseAmount: true,
 						interestRate: true,
+						fiscalDepreciationRate: true,
 						termMonths: true,
 						startDate: true,
 					},
@@ -214,6 +215,8 @@ export class VehiclesService {
 						currency: financing.currency,
 						baseAmountCents: toCents(financing.baseAmount),
 						interestRate: financing.interestRate?.toNumber() ?? null,
+						fiscalDepreciationRate:
+							financing.fiscalDepreciationRate?.toNumber() ?? null,
 						termMonths: financing.termMonths,
 						startDate: financing.startDate.toISOString(),
 					}
@@ -442,17 +445,26 @@ export class VehiclesService {
 		const currency = normalizeCurrency(
 			input.currency ?? (await this.conversion.reportingCurrency()),
 		);
-		const fx = await this.conversion.convertFields(
-			decimalFromCents(input.monthlyPaymentCents),
-			currency,
-		);
+		const principal = decimalFromCents(input.principalAmountCents);
+		const monthlyPayment =
+			input.type === "PURCHASE"
+				? principal?.dividedBy(input.termMonths ?? 1)
+				: decimalFromCents(input.monthlyPaymentCents);
+		if (!monthlyPayment) {
+			throw new BadRequestException("A financing plan needs a valid amount.");
+		}
+		const fx = await this.conversion.convertFields(monthlyPayment, currency);
 		const fields = {
 			type: input.type,
-			principalAmount: decimalFromCents(input.principalAmountCents),
-			monthlyPayment: fromCents(input.monthlyPaymentCents) ?? 0,
+			principalAmount: principal,
+			monthlyPayment,
 			currency,
 			...fx,
 			interestRate: input.interestRate ?? null,
+			fiscalDepreciationRate:
+				input.type === "LEASING"
+					? null
+					: (input.fiscalDepreciationRate ?? null),
 			termMonths: input.termMonths ?? null,
 			startDate: parseDate(input.startDate) ?? new Date(),
 		};

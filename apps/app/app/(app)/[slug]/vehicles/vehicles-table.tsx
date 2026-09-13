@@ -202,7 +202,7 @@ function VehicleCard({ vehicle }: { vehicle: VehicleRow }) {
 			<div className="relative min-h-[180px] flex-1 overflow-hidden">
 				<div
 					aria-hidden
-					className="absolute inset-x-0 bottom-16 mx-auto h-3 w-2/3 rounded-full bg-black/25 blur-md"
+					className="absolute inset-x-0 bottom-16 mx-auto h-3 w-2/3 rounded-full bg-black/50 blur-md"
 				/>
 				<Image
 					src={PLACEHOLDER_PHOTO}

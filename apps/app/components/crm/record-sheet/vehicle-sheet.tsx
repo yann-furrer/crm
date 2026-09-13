@@ -3,6 +3,7 @@
 import Calendar from "@carbon/icons-react/es/Calendar";
 import Currency from "@carbon/icons-react/es/Currency";
 import Edit from "@carbon/icons-react/es/Edit";
+import Information from "@carbon/icons-react/es/Information";
 import Meter from "@carbon/icons-react/es/Meter";
 import ToolKit from "@carbon/icons-react/es/ToolKit";
 import TrashCan from "@carbon/icons-react/es/TrashCan";
@@ -22,8 +23,7 @@ import {
 import { Button } from "@crm/ui/components/button";
 import type { ChartConfig } from "@crm/ui/components/chart";
 import { EmptyCellValue } from "@crm/ui/components/empty-cell";
-import { EntityLogo } from "@crm/ui/components/entity-logo";
-import { Field, FieldLabel } from "@crm/ui/components/field";
+import { Field, FieldLabel, FieldSeparator } from "@crm/ui/components/field";
 import { Icon } from "@crm/ui/components/icon";
 import { Input } from "@crm/ui/components/input";
 import {
@@ -34,9 +34,17 @@ import {
 	SelectValue,
 } from "@crm/ui/components/select";
 import { SimpleTable, SimpleTableRow } from "@crm/ui/components/simple-table";
-import { StatusIndicator } from "@crm/ui/components/status-indicator";
+import {
+	IndicatorDot,
+	StatusIndicator,
+} from "@crm/ui/components/status-indicator";
 import { TableCell } from "@crm/ui/components/table";
 import { Textarea } from "@crm/ui/components/textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@crm/ui/components/tooltip";
 import { formatMoney, formatMoneyCompact } from "@crm/ui/lib/format";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
@@ -108,9 +116,9 @@ const VEHICLE_TYPE_OPTIONS = [
 ];
 
 const VEHICLE_FUEL_OPTIONS = [
-	{ value: "DIESEL", label: "Gazole" },
-	{ value: "GASOLINE", label: "Essence" },
-	{ value: "ELECTRIC", label: "Électrique" },
+	{ value: "DIESEL", label: "Gazole", color: "var(--color-warning)" },
+	{ value: "GASOLINE", label: "Essence", color: "var(--color-primary)" },
+	{ value: "ELECTRIC", label: "Électrique", color: "var(--color-info)" },
 ];
 
 const VEHICLE_STATUS_OPTIONS = [
@@ -175,6 +183,7 @@ const CHARGE_COLUMNS = [
 const FINANCING_TYPE_OPTIONS = [
 	{ value: FinancingType.LOAN, label: "Crédit" },
 	{ value: FinancingType.LEASING, label: "Leasing" },
+	{ value: FinancingType.PURCHASE, label: "Achat comptant" },
 ];
 
 const CHARGE_FREQUENCY_OPTIONS = [
@@ -250,11 +259,6 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 			error={query.error?.message ?? null}
 			title={vehicle ? `${vehicle.make} ${vehicle.model}` : "Véhicule"}
 			description={vehicle?.plateNumber}
-			media={
-				vehicle ? (
-					<EntityLogo name={vehicle.plateNumber} size="lg" elevation="raised" />
-				) : null
-			}
 			actions={
 				vehicle ? (
 					<RecordActions
@@ -331,7 +335,7 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 
 	return (
 		<DetailSheetBody>
-			<DetailSheetSection title="Détails" action={<FieldsCog kind="vehicle" />}>
+			<DetailSheetSection title="Identification">
 				<DetailSheetProperties>
 					<InlineSelectField
 						label="Type"
@@ -344,6 +348,32 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						value={vehicle.fuelType}
 						options={VEHICLE_FUEL_OPTIONS}
 						onSave={(fuelType) => save({ fuelType: fuelType as never })}
+						renderOption={(option) => (
+							<span>
+								<IndicatorDot
+									color={
+										VEHICLE_FUEL_OPTIONS.find(
+											(item) => item.value === option.value,
+										)?.color
+									}
+									aria-hidden="true"
+								/>
+								{option.label}
+							</span>
+						)}
+						renderValue={(option) => (
+							<span>
+								<IndicatorDot
+									color={
+										VEHICLE_FUEL_OPTIONS.find(
+											(item) => item.value === option.value,
+										)?.color
+									}
+									aria-hidden="true"
+								/>
+								{option.label}
+							</span>
+						)}
 					/>
 					<InlineField
 						label="Marque"
@@ -375,6 +405,10 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						saving={isSaving("color")}
 						onSave={(color) => save({ color })}
 					/>
+				</DetailSheetProperties>
+			</DetailSheetSection>
+			<DetailSheetSection title="Exploitation">
+				<DetailSheetProperties>
 					<InlineSelectField
 						label="Statut"
 						value={vehicle.status}
@@ -408,6 +442,10 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						saving={isSaving("mileage")}
 						onSave={(next) => save({ mileage: Number(next) || 0 })}
 					/>
+				</DetailSheetProperties>
+			</DetailSheetSection>
+			<DetailSheetSection title="Documents et échéances">
+				<DetailSheetProperties>
 					<InlineField
 						label="N° de police d’assurance"
 						value={vehicle.insurancePolicyNumber}
@@ -432,6 +470,13 @@ function VehicleOverview({ vehicle }: { vehicle: Vehicle }) {
 						saving={isSaving("nextMaintenanceAtDate")}
 						onSave={(next) => save({ nextMaintenanceAtDate: next || null })}
 					/>
+				</DetailSheetProperties>
+			</DetailSheetSection>
+			<DetailSheetSection
+				title="Champs personnalisés"
+				action={<FieldsCog kind="vehicle" />}
+			>
+				<DetailSheetProperties>
 					<RecordFields
 						fields={vehicle.fields}
 						saving={isSavingField}
@@ -735,8 +780,16 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 					{FINANCING_TYPE_OPTIONS.find((o) => o.value === financing.type)
 						?.label ?? financing.type}
 				</DetailSheetProperty>
-				<DetailSheetProperty label="Mensualité">
-					{financing.monthlyPaymentCents === null ? (
+				<DetailSheetProperty
+					label={
+						financing.type === FinancingType.PURCHASE
+							? "Prix d’achat"
+							: "Mensualité"
+					}
+				>
+					{financing.type === FinancingType.PURCHASE ? (
+						formatMoney(financing.principalAmountCents ?? 0, financing.currency)
+					) : financing.monthlyPaymentCents === null ? (
 						<EmptyCellValue />
 					) : (
 						formatMoney(financing.monthlyPaymentCents, financing.currency)
@@ -752,9 +805,16 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 						{financing.interestRate}%
 					</DetailSheetProperty>
 				)}
+				{financing.fiscalDepreciationRate === null ? null : (
+					<DetailSheetProperty label="Amortissement fiscal annuel">
+						{financing.fiscalDepreciationRate}%
+					</DetailSheetProperty>
+				)}
 				{financing.termMonths === null ? null : (
 					<DetailSheetProperty label="Durée">
-						{financing.termMonths} mois
+						{financing.type === FinancingType.PURCHASE
+							? `${financing.termMonths} mois d’amortissement`
+							: `${financing.termMonths} mois`}
 					</DetailSheetProperty>
 				)}
 				<DetailSheetProperty label="Date de début">
@@ -762,6 +822,35 @@ function FinancingSection({ vehicle }: { vehicle: Vehicle }) {
 				</DetailSheetProperty>
 			</DetailSheetProperties>
 		</DetailSheetSection>
+	);
+}
+
+function FinancingFieldLabel({
+	htmlFor,
+	label,
+	hint,
+}: {
+	htmlFor: string;
+	label: string;
+	hint: string;
+}) {
+	return (
+		<FieldLabel htmlFor={htmlFor}>
+			{label}
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-xs"
+						aria-label={`À propos de ${label}`}
+					>
+						<Icon icon={Information} />
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{hint}</TooltipContent>
+			</Tooltip>
+		</FieldLabel>
 	);
 }
 
@@ -798,6 +887,12 @@ function FinancingForm({
 			? ""
 			: String(existing.interestRate),
 	);
+	const [fiscalDepreciationRate, setFiscalDepreciationRate] = useState(
+		existing?.fiscalDepreciationRate === null ||
+			existing?.fiscalDepreciationRate === undefined
+			? ""
+			: String(existing.fiscalDepreciationRate),
+	);
 	const [termMonths, setTermMonths] = useState(
 		existing?.termMonths === null || existing?.termMonths === undefined
 			? ""
@@ -813,6 +908,7 @@ function FinancingForm({
 	const interestRateId = useId();
 	const termMonthsId = useId();
 	const startDateId = useId();
+	const fiscalDepreciationRateId = useId();
 
 	const save = useMutation(
 		trpc.vehicles.setFinancing.mutationOptions({
@@ -826,7 +922,14 @@ function FinancingForm({
 	);
 
 	const monthlyPaymentCents = parseAmountCents(monthlyPayment);
-	const ready = monthlyPaymentCents !== null && startDate !== "";
+	const isPurchase = type === FinancingType.PURCHASE;
+	const isLoan = type === FinancingType.LOAN;
+	const principalCents = parseAmountCents(principal);
+	const formReady =
+		startDate !== "" &&
+		(isPurchase
+			? principalCents !== null && Boolean(termMonths)
+			: monthlyPaymentCents !== null);
 
 	return (
 		<QuickAddForm
@@ -834,33 +937,43 @@ function FinancingForm({
 				existing ? "Enregistrer le financement" : "Ajouter un financement"
 			}
 			pending={save.isPending}
-			ready={ready}
+			ready={formReady}
+			density="compact"
+			columns={3}
 			onCancel={onCancel ?? onDone}
 			onSubmit={() => {
-				if (monthlyPaymentCents === null) return;
+				if (!isPurchase && monthlyPaymentCents === null) return;
 				save.mutate({
 					vehicleId: vehicle.id,
 					type,
 					currency: vehicle.currency,
-					monthlyPaymentCents,
-					principalAmountCents:
-						type === FinancingType.LOAN ? parseAmountCents(principal) : null,
+					monthlyPaymentCents: isPurchase ? null : monthlyPaymentCents,
+					principalAmountCents: isLoan || isPurchase ? principalCents : null,
 					interestRate:
 						type === FinancingType.LOAN && interestRate.trim() !== ""
 							? Number.parseFloat(interestRate)
+							: null,
+					fiscalDepreciationRate:
+						(isLoan || isPurchase) && fiscalDepreciationRate.trim() !== ""
+							? Number.parseFloat(fiscalDepreciationRate)
 							: null,
 					termMonths: termMonths.trim() === "" ? null : Number(termMonths),
 					startDate,
 				});
 			}}
 		>
+			<FieldSeparator className="sm:col-span-3">Financement</FieldSeparator>
 			<Field>
-				<FieldLabel htmlFor={typeId}>Type</FieldLabel>
+				<FinancingFieldLabel
+					htmlFor={typeId}
+					label="Type"
+					hint="Choisissez crédit, leasing ou achat comptant."
+				/>
 				<Select
 					value={type}
 					onValueChange={(next) => setType(next as FinancingType)}
 				>
-					<SelectTrigger id={typeId} className="w-full">
+					<SelectTrigger id={typeId} size="sm" className="w-full">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -872,22 +985,51 @@ function FinancingForm({
 					</SelectContent>
 				</Select>
 			</Field>
-			<Field>
-				<FieldLabel htmlFor={monthlyPaymentId}>Mensualité</FieldLabel>
-				<Input
-					id={monthlyPaymentId}
-					autoFocus
-					inputMode="decimal"
-					value={monthlyPayment}
-					onChange={(event) => setMonthlyPayment(event.target.value)}
-					placeholder="350"
-				/>
-			</Field>
-			{type === FinancingType.LOAN ? (
+			{isPurchase ? (
 				<Field>
-					<FieldLabel htmlFor={principalId}>Capital financé</FieldLabel>
+					<FinancingFieldLabel
+						htmlFor={principalId}
+						label="Prix d’achat"
+						hint="Montant total payé pour acquérir le véhicule."
+					/>
 					<Input
 						id={principalId}
+						density="sm"
+						autoFocus
+						inputMode="decimal"
+						value={principal}
+						onChange={(event) => setPrincipal(event.target.value)}
+						placeholder="18000"
+					/>
+				</Field>
+			) : (
+				<Field>
+					<FinancingFieldLabel
+						htmlFor={monthlyPaymentId}
+						label="Mensualité"
+						hint="Montant payé chaque mois au prêteur ou au bailleur."
+					/>
+					<Input
+						id={monthlyPaymentId}
+						density="sm"
+						autoFocus
+						inputMode="decimal"
+						value={monthlyPayment}
+						onChange={(event) => setMonthlyPayment(event.target.value)}
+						placeholder="350"
+					/>
+				</Field>
+			)}
+			{isLoan ? (
+				<Field>
+					<FinancingFieldLabel
+						htmlFor={principalId}
+						label="Capital financé"
+						hint="Montant emprunté, hors intérêts."
+					/>
+					<Input
+						id={principalId}
+						density="sm"
 						inputMode="decimal"
 						value={principal}
 						onChange={(event) => setPrincipal(event.target.value)}
@@ -895,11 +1037,16 @@ function FinancingForm({
 					/>
 				</Field>
 			) : null}
-			{type === FinancingType.LOAN ? (
+			{isLoan ? (
 				<Field>
-					<FieldLabel htmlFor={interestRateId}>Taux d’intérêt (%)</FieldLabel>
+					<FinancingFieldLabel
+						htmlFor={interestRateId}
+						label="Taux d’intérêt (%)"
+						hint="Pourcentage annuel facturé par le prêteur sur le crédit."
+					/>
 					<Input
 						id={interestRateId}
+						density="sm"
 						inputMode="decimal"
 						value={interestRate}
 						onChange={(event) => setInterestRate(event.target.value)}
@@ -907,10 +1054,43 @@ function FinancingForm({
 					/>
 				</Field>
 			) : null}
+			{isLoan || isPurchase ? (
+				<>
+					<FieldSeparator className="sm:col-span-3">
+						Amortissement fiscal
+					</FieldSeparator>
+					<Field>
+						<FinancingFieldLabel
+							htmlFor={fiscalDepreciationRateId}
+							label="Taux fiscal annuel (%)"
+							hint="Part du prix du véhicule déduite fiscalement chaque année, par exemple 20 %."
+						/>
+						<Input
+							id={fiscalDepreciationRateId}
+							density="sm"
+							inputMode="decimal"
+							value={fiscalDepreciationRate}
+							onChange={(event) =>
+								setFiscalDepreciationRate(event.target.value)
+							}
+							placeholder="20"
+						/>
+					</Field>
+				</>
+			) : null}
 			<Field>
-				<FieldLabel htmlFor={termMonthsId}>Durée (mois)</FieldLabel>
+				<FinancingFieldLabel
+					htmlFor={termMonthsId}
+					label={isPurchase ? "Durée d’amortissement (mois)" : "Durée (mois)"}
+					hint={
+						isPurchase
+							? "Durée utilisée pour répartir le prix d’achat."
+							: "Durée prévue du remboursement ou du contrat."
+					}
+				/>
 				<Input
 					id={termMonthsId}
+					density="sm"
 					inputMode="numeric"
 					value={termMonths}
 					onChange={(event) => setTermMonths(event.target.value)}
@@ -918,9 +1098,14 @@ function FinancingForm({
 				/>
 			</Field>
 			<Field>
-				<FieldLabel htmlFor={startDateId}>Date de début</FieldLabel>
+				<FinancingFieldLabel
+					htmlFor={startDateId}
+					label="Date de début"
+					hint="Date à partir de laquelle le financement est pris en compte."
+				/>
 				<Input
 					id={startDateId}
+					density="sm"
 					type="date"
 					value={startDate}
 					onChange={(event) => setStartDate(event.target.value)}

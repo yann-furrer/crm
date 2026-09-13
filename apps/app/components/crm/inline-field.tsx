@@ -15,7 +15,7 @@ import { SOURCED_VALUE, SourcedValue } from "@crm/ui/components/sourced-value";
 import { Spinner } from "@crm/ui/components/spinner";
 import { Textarea } from "@crm/ui/components/textarea";
 import { cn } from "@crm/ui/lib/utils";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { PROPERTY_LABEL, PROPERTY_ROW } from "@/components/detail-sheet";
 
 const ROW = cn(PROPERTY_ROW, "items-center");
@@ -374,6 +374,8 @@ export function InlineSelectField({
 	onSave,
 	saving = false,
 	placeholder = "None",
+	renderOption,
+	renderValue,
 }: {
 	label: string;
 	value: string;
@@ -381,8 +383,11 @@ export function InlineSelectField({
 	onSave: (next: string) => void;
 	saving?: boolean;
 	placeholder?: string;
+	renderOption?: (option: { value: string; label: string }) => ReactNode;
+	renderValue?: (option: { value: string; label: string }) => ReactNode;
 }) {
 	const id = useId();
+	const selectedOption = options.find((option) => option.value === value);
 
 	return (
 		<div className={ROW}>
@@ -392,12 +397,16 @@ export function InlineSelectField({
 			<div className="flex min-w-0 items-center gap-1.5">
 				<Select value={value} onValueChange={onSave} disabled={saving}>
 					<SelectTrigger id={id} variant="ghost" className="w-full">
-						<SelectValue placeholder={placeholder} />
+						<SelectValue placeholder={placeholder}>
+							{selectedOption && renderValue
+								? renderValue(selectedOption)
+								: undefined}
+						</SelectValue>
 					</SelectTrigger>
 					<SelectContent>
 						{options.map((option) => (
 							<SelectItem key={option.value} value={option.value}>
-								{option.label}
+								{renderOption ? renderOption(option) : option.label}
 							</SelectItem>
 						))}
 					</SelectContent>
