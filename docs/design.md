@@ -20,6 +20,15 @@
   seam in the page; the shadow is what makes the surface read as sitting above
   it, which is the difference between "square" and "designed."
 - If a component needs a new variant or style, implement it in /packages/ui so the entire application stays consistent.
+- Transient overlay chrome (`Popover`, `DropdownMenu`, `Select` content, the
+  command palette) is glass: `bg-popover/75` to `/80` with a `backdrop-blur`,
+  guarded behind `supports-backdrop-filter:` so a browser without the filter
+  still gets the opaque fallback. Modal overlays (`Dialog`, `AlertDialog`,
+  `Sheet`) carry a `backdrop-blur-sm` scrim for the same reason. Persistent
+  content surfaces — `Card`, `CardPanel`, table shells, and the dialog/sheet
+  *panel* itself once it's open — stay fully opaque: glass is for the thing
+  floating momentarily above content, never for the thing holding content
+  someone has to read continuously.
 
 ## Colour
 
