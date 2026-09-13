@@ -307,7 +307,7 @@ export function RentalContractSheet({ contractId }: { contractId: string }) {
 				) : undefined
 			}
 			actions={
-			contract ? (
+				contract ? (
 					<>
 						<RentalStatusMenu
 							contractId={contract.id}
@@ -559,6 +559,25 @@ function ContractCostSummary({
 					définitifs : ils s’ajoutent au retour et au règlement de la caution.
 				</p>
 			) : null}
+			<div className="flex items-center justify-between gap-4 border-t pt-1.5 text-xs">
+				<span className="text-muted-foreground">
+					Caution ({depositLabel(contract.depositStatus)})
+				</span>
+				<span className="tabular-nums text-muted-foreground">
+					{formatMoney(
+						contract.depositAmountCents ?? 0,
+						contract.depositCurrency,
+					)}
+				</span>
+			</div>
+			{depositSettled && retainedDepositCents > 0 ? (
+				<div className="flex items-center justify-between gap-4 text-xs">
+					<span className="text-muted-foreground">dont retenu</span>
+					<span className="tabular-nums text-muted-foreground">
+						{formatMoney(retainedDepositCents, contract.depositCurrency)}
+					</span>
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -616,99 +635,105 @@ function ContractOverview({ contract }: { contract: RentalContract }) {
 				) : null}
 			</DetailSheetSection>
 
-			<DetailSheetSection title="Récapitulatif">
-				<ContractCostSummary contract={contract} currency={currency} />
-			</DetailSheetSection>
-
-			<DetailSheetSection
-				title="Détails"
-				action={<FieldsCog kind="rentalContract" />}
-			>
-				<DetailSheetProperties>
-					<div className={cn(PROPERTY_ROW, "items-center")}>
-						<span className={PROPERTY_LABEL}>Départ</span>
-						<div className="flex min-w-0 items-center gap-2">
-							<InlineDateField
-								label="Date de départ"
-								value={contract.startDate}
-								saving={isSaving("startDate")}
-								onSave={(next) => next && save({ startDate: next })}
-								className="max-w-32"
-								bare
-							/>
-							<InlineField
-								label="Heure de départ"
-								value={contract.pickupTime}
-								type="time"
-								placeholder="09:00"
-								saving={isSaving("pickupTime")}
-								onSave={(next) => save({ pickupTime: next || null })}
-								className="max-w-24"
-								bare
-							/>
+			<div className="flex flex-col border-b lg:flex-row lg:items-stretch">
+				<DetailSheetSection
+					title="Détails"
+					action={<FieldsCog kind="rentalContract" />}
+					className="max-lg:border-b border-b-0 lg:flex-1 lg:border-r"
+				>
+					<DetailSheetProperties>
+						<div className={cn(PROPERTY_ROW, "items-center")}>
+							<span className={PROPERTY_LABEL}>Départ</span>
+							<div className="flex min-w-0 items-center gap-2">
+								<InlineDateField
+									label="Date de départ"
+									value={contract.startDate}
+									saving={isSaving("startDate")}
+									onSave={(next) => next && save({ startDate: next })}
+									className="max-w-32"
+									bare
+								/>
+								<InlineField
+									label="Heure de départ"
+									value={contract.pickupTime}
+									type="time"
+									placeholder="09:00"
+									saving={isSaving("pickupTime")}
+									onSave={(next) => save({ pickupTime: next || null })}
+									className="max-w-24"
+									bare
+								/>
+							</div>
 						</div>
-					</div>
-					<div className={cn(PROPERTY_ROW, "items-center")}>
-						<span className={PROPERTY_LABEL}>Retour</span>
-						<div className="flex min-w-0 items-center gap-2">
-							<InlineDateField
-								label="Date de retour"
-								value={contract.endDate}
-								saving={isSaving("endDate")}
-								onSave={(next) => next && save({ endDate: next })}
-								className="max-w-32"
-								bare
-							/>
-							<InlineField
-								label="Heure de retour"
-								value={contract.returnTime}
-								type="time"
-								placeholder="18:00"
-								saving={isSaving("returnTime")}
-								onSave={(next) => save({ returnTime: next || null })}
-								className="max-w-24"
-								bare
-							/>
+						<div className={cn(PROPERTY_ROW, "items-center")}>
+							<span className={PROPERTY_LABEL}>Retour</span>
+							<div className="flex min-w-0 items-center gap-2">
+								<InlineDateField
+									label="Date de retour"
+									value={contract.endDate}
+									saving={isSaving("endDate")}
+									onSave={(next) => next && save({ endDate: next })}
+									className="max-w-32"
+									bare
+								/>
+								<InlineField
+									label="Heure de retour"
+									value={contract.returnTime}
+									type="time"
+									placeholder="18:00"
+									saving={isSaving("returnTime")}
+									onSave={(next) => save({ returnTime: next || null })}
+									className="max-w-24"
+									bare
+								/>
+							</div>
 						</div>
-					</div>
-					<InlineField
-						label="Prix par jour"
-						value={String((contract.pricePerDayCents ?? 0) / 100)}
-						saving={isSaving("pricePerDayCents")}
-						onSave={(next) => {
-							const parsed = Number.parseFloat(next);
-							if (!Number.isFinite(parsed) || parsed < 0) {
-								toast.error("Le prix doit être un nombre.");
-								return;
+						<InlineField
+							label="Prix par jour"
+							value={String((contract.pricePerDayCents ?? 0) / 100)}
+							saving={isSaving("pricePerDayCents")}
+							onSave={(next) => {
+								const parsed = Number.parseFloat(next);
+								if (!Number.isFinite(parsed) || parsed < 0) {
+									toast.error("Le prix doit être un nombre.");
+									return;
+								}
+								save({ pricePerDayCents: Math.round(parsed * 100) });
+							}}
+							render={(value) =>
+								formatMoney(Math.round(Number(value) * 100), currency)
 							}
-							save({ pricePerDayCents: Math.round(parsed * 100) });
-						}}
-						render={(value) =>
-							formatMoney(Math.round(Number(value) * 100), currency)
-						}
-						className="max-w-32"
-					/>
-					<InlineField
-						label="Kilomètres inclus / jour"
-						value={
-							contract.mileageIncludedPerDay === null
-								? null
-								: String(contract.mileageIncludedPerDay)
-						}
-						saving={isSaving("mileageIncludedPerDay")}
-						onSave={(next) =>
-							save({ mileageIncludedPerDay: next ? Number(next) : null })
-						}
-						render={(value) => `${value} km`}
-						className="max-w-28"
-					/>
-					<RecordFields
-						fields={contract.fields}
-						saving={isSavingField}
-						onSave={saveFields}
-					/>
-				</DetailSheetProperties>
-			</DetailSheetSection>
+							className="max-w-32"
+						/>
+						<InlineField
+							label="Kilomètres inclus / jour"
+							value={
+								contract.mileageIncludedPerDay === null
+									? null
+									: String(contract.mileageIncludedPerDay)
+							}
+							saving={isSaving("mileageIncludedPerDay")}
+							onSave={(next) =>
+								save({ mileageIncludedPerDay: next ? Number(next) : null })
+							}
+							render={(value) => `${value} km`}
+							className="max-w-28"
+						/>
+						<RecordFields
+							fields={contract.fields}
+							saving={isSavingField}
+							onSave={saveFields}
+						/>
+					</DetailSheetProperties>
+				</DetailSheetSection>
+
+				<DetailSheetSection
+					title="Récapitulatif"
+					className="border-b-0 lg:w-80 lg:shrink-0"
+				>
+					<ContractCostSummary contract={contract} currency={currency} />
+				</DetailSheetSection>
+			</div>
 
 			<DetailSheetSection title="Kilométrage supplémentaire">
 				<DetailSheetProperties>
