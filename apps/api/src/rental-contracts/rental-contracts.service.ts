@@ -1013,16 +1013,36 @@ export class RentalContractsService {
 		endDate: Date,
 		excludeContractId?: string,
 	): Promise<void> {
-		const conflict = await this.db.rentalContract.findFirst({
-			where: {
-				vehicleId,
-				id: excludeContractId ? { not: excludeContractId } : undefined,
-				status: { in: ACTIVE_OR_PENDING },
-				startDate: { lt: endDate },
-				endDate: { gt: startDate },
-			},
-			select: { startDate: true, endDate: true },
-		});
+		const [vehicle, conflict] = await Promise.all([
+			this.db.vehicle.findUnique({
+				where: { id: vehicleId },
+				select: { status: true },
+			}),
+			this.db.rentalContract.findFirst({
+				where: {
+					vehicleId,
+					id: excludeContractId ? { not: excludeContractId } : undefined,
+					status: { in: ACTIVE_OR_PENDING },
+					startDate: { lt: endDate },
+					endDate: { gt: startDate },
+				},
+				select: { startDate: true, endDate: true },
+			}),
+		]);
+
+		if (!vehicle) {
+			throw new NotFoundException("The vehicle was not found.");
+		}
+
+		if (
+			vehicle.status === VehicleStatus.MAINTENANCE ||
+			vehicle.status === VehicleStatus.OUT_OF_SERVICE ||
+			vehicle.status === VehicleStatus.STOLEN
+		) {
+			throw new ConflictException(
+				"This vehicle is not available for a rental contract.",
+			);
+		}
 
 		if (conflict) {
 			throw new ConflictException(

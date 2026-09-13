@@ -1185,6 +1185,7 @@ model Incident {
   reportedBy   User         @relation("IncidentReporter", fields: [reportedById], references: [id], onDelete: Restrict)
   description  String
   damageAreas  String[]     @default([])
+  damageAnnotations IncidentDamageAnnotation[]
 
   responsibleParty ResponsibleParty @default(UNKNOWN)
 
@@ -1213,6 +1214,50 @@ model Incident {
   @@index([insuranceStatus])
   @@index([reportedAt])
 	@@map("incident")
+}
+
+enum IncidentDamageView {
+	THREE_QUARTER
+	FRONT
+	REAR
+	LEFT_SIDE
+	RIGHT_SIDE
+	ROOF
+	INTERIOR
+}
+
+enum IncidentDamageType {
+	SCRATCH
+	DENT
+	CRACK
+	BROKEN
+	MISSING
+	STAIN
+	OTHER
+}
+
+enum IncidentDamageSeverity {
+	MINOR
+	MODERATE
+	SEVERE
+}
+
+model IncidentDamageAnnotation {
+	id         String       @id @default(cuid())
+	incidentId String
+	incident   Incident     @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+	view       IncidentDamageView
+	type       IncidentDamageType
+	severity   IncidentDamageSeverity
+	x          Float
+	y          Float
+	points     Json?
+	description String?
+	createdAt  DateTime     @default(now())
+	updatedAt  DateTime     @updatedAt
+
+	@@index([incidentId])
+	@@map("incidentDamageAnnotation")
 }
 
 model IncidentDocument {

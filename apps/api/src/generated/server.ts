@@ -21,7 +21,7 @@ import { setReportingCurrencyInput, setManualRateInput, removeManualRateInput } 
 import { dashboardSummaryInput } from "../dashboard/dashboard.contracts";
 import { fieldListInput, fieldByKeyInput, fieldIdInput, fieldCreateInput, fieldUpdateArgs, fieldReorderInput } from "../fields/fields.contracts";
 import { setAutoCreateInput, suppressDomainInput, threadInput, calendarEventInput } from "../google/google.contracts";
-import { incidentsByVehicleInput, incidentsByContractInput, incidentCreateInput, incidentUpdateArgs, incidentIdInput } from "../incidents/incidents.contracts";
+import { incidentsByVehicleInput, incidentsByContractInput, incidentCreateInput, incidentUpdateArgs, incidentIdInput, damageAnnotationCreateInput, damageAnnotationUpdateArgs } from "../incidents/incidents.contracts";
 import { inspectionsByContractInput, inspectionCreateInput, inspectionIdInput } from "../inspections/inspections.contracts";
 import { maintenanceByVehicleInput, maintenanceCreateInput, maintenanceUpdateArgs, maintenanceIdInput } from "../maintenance/maintenance.contracts";
 import { setOutlookAutoCreateInput } from "../microsoft/microsoft.contracts";
@@ -281,7 +281,16 @@ const appRouter = t.router({
       .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["update"]>>),
     delete: publicProcedure
       .input(incidentIdInput)
-      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["delete"]>>)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["delete"]>>),
+    createDamageAnnotation: publicProcedure
+      .input(damageAnnotationCreateInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["createDamageAnnotation"]>>),
+    updateDamageAnnotation: publicProcedure
+      .input(damageAnnotationUpdateArgs)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["updateDamageAnnotation"]>>),
+    deleteDamageAnnotation: publicProcedure
+      .input(incidentIdInput)
+      .mutation(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<IncidentsRouter["deleteDamageAnnotation"]>>)
     }),
   vehicleInspections: t.router({
     listByContract: publicProcedure

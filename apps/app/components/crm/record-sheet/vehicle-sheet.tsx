@@ -1,7 +1,9 @@
 "use client";
 
 import Calendar from "@carbon/icons-react/es/Calendar";
+import Currency from "@carbon/icons-react/es/Currency";
 import Edit from "@carbon/icons-react/es/Edit";
+import Meter from "@carbon/icons-react/es/Meter";
 import ToolKit from "@carbon/icons-react/es/ToolKit";
 import TrashCan from "@carbon/icons-react/es/TrashCan";
 import Warning from "@carbon/icons-react/es/Warning";
@@ -65,6 +67,14 @@ import { savingField } from "@/lib/pending-field";
 import { useCrmCache } from "@/lib/trpc/cache";
 import { useTRPC } from "@/lib/trpc/client";
 import type { RouterOutputs } from "@/lib/trpc/types";
+import type {
+	DamageAnnotationDraft,
+	DamagePoint,
+	DamageSeverity,
+	DamageType,
+	DamageView,
+} from "../vehicle-damage/vehicle-damage-editor";
+import { VehicleDamageEditor } from "../vehicle-damage/vehicle-damage-editor";
 import { QuickAddForm } from "./quick-add";
 import { RecordActions } from "./record-actions";
 import { RecordSheetFrame } from "./record-parts";
@@ -72,25 +82,22 @@ import { useOpenRecord, useRecordSheetView } from "./record-stack";
 
 type Vehicle = RouterOutputs["vehicles"]["byId"];
 type VehicleCharge = RouterOutputs["vehicleCharges"]["listByVehicle"][number];
-type VehicleIncident = RouterOutputs["incidents"]["listByVehicle"][number];
-
-const DAMAGE_AREA_OPTIONS = [
-	{ value: "FRONT", label: "Avant" },
-	{ value: "REAR", label: "Arrière" },
-	{ value: "LEFT_SIDE", label: "Côté gauche" },
-	{ value: "RIGHT_SIDE", label: "Côté droit" },
-	{ value: "ROOF", label: "Toit" },
-	{ value: "HOOD", label: "Capot" },
-	{ value: "TRUNK", label: "Coffre" },
-	{ value: "WINDSHIELD", label: "Pare-brise" },
-	{ value: "LEFT_WHEEL", label: "Roue gauche" },
-	{ value: "RIGHT_WHEEL", label: "Roue droite" },
-] as const;
-type DamageArea = (typeof DAMAGE_AREA_OPTIONS)[number]["value"];
-
-function isDamageArea(value: string): value is DamageArea {
-	return DAMAGE_AREA_OPTIONS.some((area) => area.value === value);
-}
+type PersistedDamageAnnotation = {
+	id: string;
+	view: string;
+	type: string;
+	severity: string;
+	x: number;
+	y: number;
+	points: unknown;
+	description: string | null;
+};
+type VehicleIncidentRow = {
+	id: string;
+	description: string;
+	responsibleParty: string;
+	damageAnnotations: PersistedDamageAnnotation[];
+};
 
 const VEHICLE_TYPE_OPTIONS = [
 	{ value: "CAR", label: "Voiture" },
@@ -216,7 +223,12 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 				{
 					value: "incidents",
 					label: "Incidents",
-					content: <VehicleIncidents vehicleId={vehicle.id} />,
+					content: (
+						<VehicleIncidents
+							vehicleId={vehicle.id}
+							vehicleStatus={vehicle.status}
+						/>
+					),
 				},
 				{
 					value: "activity",
@@ -273,7 +285,7 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 								}
 							/>
 						</DetailSheetStat>
-						<DetailSheetStat label="Tarif journalier">
+						<DetailSheetStat label="Tarif journalier" icon={Currency}>
 							{vehicle.dailyRateCents === null ? (
 								<EmptyCellValue />
 							) : (
@@ -282,7 +294,7 @@ export function VehicleSheet({ vehicleId }: { vehicleId: string }) {
 								</span>
 							)}
 						</DetailSheetStat>
-						<DetailSheetStat label="Kilométrage">
+						<DetailSheetStat label="Kilométrage" icon={Meter}>
 							<span className="tabular-nums">
 								{vehicle.mileage.toLocaleString()} km
 							</span>
@@ -1215,7 +1227,13 @@ function parseAmountCents(value: string): number | null {
 	return Math.round(parsed * 100);
 }
 
-function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
+function VehicleIncidents({
+	vehicleId,
+	vehicleStatus,
+}: {
+	vehicleId: string;
+	vehicleStatus: Vehicle["status"];
+}) {
 	const trpc = useTRPC();
 	const [adding, setAdding] = useState(false);
 
@@ -1223,15 +1241,19 @@ function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
 		trpc.incidents.listByVehicle.queryOptions({ vehicleId }),
 	);
 
-	const rows = incidents.data ?? [];
+	const rows = (incidents.data ?? []) as unknown as VehicleIncidentRow[];
 
 	const form = adding ? (
-		<IncidentForm vehicleId={vehicleId} onDone={() => setAdding(false)} />
+		<IncidentForm
+			vehicleId={vehicleId}
+			vehicleStatus={vehicleStatus}
+			onDone={() => setAdding(false)}
+		/>
 	) : null;
 
 	if (!incidents.isPending && rows.length === 0) {
 		return (
-			<>
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 				{form}
 				{adding ? null : (
 					<DetailSheetEmpty
@@ -1239,22 +1261,22 @@ function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
 						title="Aucun incident"
 						description="Aucun incident n’a été signalé pour ce véhicule."
 						action={
-							<button
-								type="button"
+							<Button
+								variant="outline"
+								size="sm"
 								onClick={() => setAdding(true)}
-								className="text-foreground text-sm underline-offset-2 hover:underline"
 							>
 								Signaler un incident
-							</button>
+							</Button>
 						}
 					/>
 				)}
-			</>
+			</div>
 		);
 	}
 
 	return (
-		<>
+		<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 			{form}
 			<SimpleTable variant="panel" columns={INCIDENT_COLUMNS}>
 				{rows.map((incident) => (
@@ -1262,42 +1284,64 @@ function VehicleIncidents({ vehicleId }: { vehicleId: string }) {
 						key={incident.id}
 						incident={incident}
 						vehicleId={vehicleId}
+						vehicleStatus={vehicleStatus}
 					/>
 				))}
 			</SimpleTable>
 			{adding ? null : (
-				<button
-					type="button"
-					onClick={() => setAdding(true)}
-					className="w-full border-t px-5 py-2 text-left text-muted-foreground text-sm hover:text-foreground"
-				>
-					Signaler un incident
-				</button>
+				<div className="p-3">
+					<Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+						Signaler un incident
+					</Button>
+				</div>
 			)}
-		</>
+		</div>
 	);
 }
 
 function IncidentForm({
 	vehicleId,
+	vehicleStatus,
 	incident,
 	onDone,
 }: {
 	vehicleId: string;
-	incident?: VehicleIncident;
+	vehicleStatus: Vehicle["status"];
+	incident?: VehicleIncidentRow;
 	onDone: () => void;
 }) {
 	const trpc = useTRPC();
 	const cache = useCrmCache();
 	const [description, setDescription] = useState(incident?.description ?? "");
-	const [damageAreas, setDamageAreas] = useState<DamageArea[]>(
-		(incident?.damageAreas ?? []).filter(isDamageArea),
+	const [nextVehicleStatus, setNextVehicleStatus] = useState("UNCHANGED");
+	const persistedAnnotations = (incident?.damageAnnotations ??
+		[]) as unknown as PersistedDamageAnnotation[];
+	const [annotations, setAnnotations] = useState<DamageAnnotationDraft[]>(
+		persistedAnnotations.map(toDamageAnnotationDraft),
 	);
 	const descriptionId = useId();
+	const updateVehicle = useMutation(
+		trpc.vehicles.update.mutationOptions({
+			onError: (error) => toast.error(error.message),
+		}),
+	);
+	const applyVehicleStatus = async () => {
+		if (
+			nextVehicleStatus === "UNCHANGED" ||
+			nextVehicleStatus === vehicleStatus
+		) {
+			return;
+		}
+		await updateVehicle.mutateAsync({
+			id: vehicleId,
+			data: { status: nextVehicleStatus as Vehicle["status"] },
+		});
+	};
 
 	const create = useMutation(
 		trpc.incidents.create.mutationOptions({
 			onSuccess: async () => {
+				await applyVehicleStatus();
 				await cache.vehicle(vehicleId);
 				toast.success("Incident signalé.");
 				onDone();
@@ -1307,28 +1351,67 @@ function IncidentForm({
 	);
 	const update = useMutation(
 		trpc.incidents.update.mutationOptions({
-			onSuccess: async () => {
-				await cache.vehicle(vehicleId);
-				toast.success("Incident modifié.");
-				onDone();
-			},
 			onError: (error) => toast.error(error.message),
 		}),
 	);
-	const pending = create.isPending || update.isPending;
-	const submit = () => {
+	const createAnnotation = useMutation(
+		trpc.incidents.createDamageAnnotation.mutationOptions(),
+	);
+	const updateAnnotation = useMutation(
+		trpc.incidents.updateDamageAnnotation.mutationOptions(),
+	);
+	const deleteAnnotation = useMutation(
+		trpc.incidents.deleteDamageAnnotation.mutationOptions(),
+	);
+	const pending =
+		create.isPending ||
+		update.isPending ||
+		updateVehicle.isPending ||
+		createAnnotation.isPending ||
+		updateAnnotation.isPending ||
+		deleteAnnotation.isPending;
+	const submit = async () => {
 		if (incident) {
-			update.mutate({
+			await update.mutateAsync({
 				id: incident.id,
-				data: { description, damageAreas },
+				data: { description },
 			});
+			const originalIds = new Set(
+				incident.damageAnnotations.map((annotation) => annotation.id),
+			);
+			await Promise.all([
+				...annotations.map((annotation) =>
+					annotation.id
+						? updateAnnotation.mutateAsync({
+								id: annotation.id,
+								data: toApiDamageAnnotation(annotation),
+							})
+						: createAnnotation.mutateAsync({
+								incidentId: incident.id,
+								...toApiDamageAnnotation(annotation),
+							}),
+				),
+				...incident.damageAnnotations
+					.filter(
+						(annotation) =>
+							!annotations.some((current) => current.id === annotation.id),
+					)
+					.filter((annotation) => originalIds.has(annotation.id))
+					.map((annotation) =>
+						deleteAnnotation.mutateAsync({ id: annotation.id }),
+					),
+			]);
+			await applyVehicleStatus();
+			await cache.vehicle(vehicleId);
+			toast.success("Incident modifié.");
+			onDone();
 			return;
 		}
 		create.mutate({
 			vehicleId,
 			type: "DAMAGE",
 			description,
-			damageAreas,
+			damageAnnotations: annotations.map(toApiDamageAnnotation),
 		});
 	};
 
@@ -1342,6 +1425,26 @@ function IncidentForm({
 			onCancel={onDone}
 			onSubmit={submit}
 		>
+			<Field className="sm:col-span-2">
+				<FieldLabel htmlFor="incident-vehicle-status">
+					Disponibilité du véhicule
+				</FieldLabel>
+				<Select value={nextVehicleStatus} onValueChange={setNextVehicleStatus}>
+					<SelectTrigger id="incident-vehicle-status" className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="UNCHANGED">Ne pas modifier</SelectItem>
+						<SelectItem value="MAINTENANCE">
+							En maintenance · indisponible
+						</SelectItem>
+						<SelectItem value="OUT_OF_SERVICE">
+							Accidenté · hors service
+						</SelectItem>
+						<SelectItem value="AVAILABLE">Remettre disponible</SelectItem>
+					</SelectContent>
+				</Select>
+			</Field>
 			<Field className="sm:col-span-2">
 				<FieldLabel htmlFor={descriptionId}>Commentaire</FieldLabel>
 				<Textarea
@@ -1358,7 +1461,7 @@ function IncidentForm({
 				<p className="text-muted-foreground text-xs">
 					Sélectionnez une ou plusieurs zones sur le schéma.
 				</p>
-				<DamageAreaPicker value={damageAreas} onChange={setDamageAreas} />
+				<VehicleDamageEditor value={annotations} onChange={setAnnotations} />
 			</Field>
 		</QuickAddForm>
 	);
@@ -1367,9 +1470,11 @@ function IncidentForm({
 function IncidentRow({
 	incident,
 	vehicleId,
+	vehicleStatus,
 }: {
-	incident: VehicleIncident;
+	incident: VehicleIncidentRow;
 	vehicleId: string;
+	vehicleStatus: Vehicle["status"];
 }) {
 	const [editing, setEditing] = useState(false);
 	const [confirming, setConfirming] = useState(false);
@@ -1392,6 +1497,7 @@ function IncidentRow({
 				<TableCell colSpan={5} className="p-0">
 					<IncidentForm
 						vehicleId={vehicleId}
+						vehicleStatus={vehicleStatus}
 						incident={incident}
 						onDone={() => setEditing(false)}
 					/>
@@ -1410,15 +1516,9 @@ function IncidentRow({
 					{incident.description}
 				</TableCell>
 				<TableCell className="px-3 py-2.5 text-muted-foreground">
-					{incident.damageAreas.length > 0
-						? incident.damageAreas
-								.map(
-									(area) =>
-										DAMAGE_AREA_OPTIONS.find((option) => option.value === area)
-											?.label ?? area,
-								)
-								.join(", ")
-						: "Non précisée"}
+					{incident.damageAnnotations.length > 0
+						? `${incident.damageAnnotations.length} dommage${incident.damageAnnotations.length > 1 ? "s" : ""} annoté${incident.damageAnnotations.length > 1 ? "s" : ""}`
+						: "Non précisé"}
 				</TableCell>
 				<TableCell className="px-3 py-2.5 text-muted-foreground">
 					{incident.responsibleParty}
@@ -1469,120 +1569,44 @@ function IncidentRow({
 	);
 }
 
-function DamageAreaPicker({
-	value,
-	onChange,
-}: {
-	value: DamageArea[];
-	onChange: (value: DamageArea[]) => void;
-}) {
-	const toggle = (area: DamageArea) =>
-		onChange(
-			value.includes(area)
-				? value.filter((current) => current !== area)
-				: [...value, area],
-		);
+function toDamageAnnotationDraft(
+	annotation: PersistedDamageAnnotation,
+): DamageAnnotationDraft {
+	return {
+		id: annotation.id,
+		view: annotation.view as DamageView,
+		type: annotation.type as DamageType,
+		severity: annotation.severity as DamageSeverity,
+		x: annotation.x,
+		y: annotation.y,
+		points: Array.isArray(annotation.points)
+			? annotation.points.filter(isDamagePoint)
+			: [],
+		description: annotation.description ?? "",
+	};
+}
 
+function isDamagePoint(value: unknown): value is DamagePoint {
+	if (!value || typeof value !== "object") return false;
+	const point = value as Record<string, unknown>;
 	return (
-		<div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-			<div className="grid grid-cols-3 gap-2">
-				<span />
-				<DamageAreaButton
-					area={DAMAGE_AREA_OPTIONS[0]}
-					selected={value.includes("FRONT")}
-					onToggle={toggle}
-				/>
-				<span />
-			</div>
-			<div className="grid grid-cols-3 items-center gap-2">
-				<DamageAreaButton
-					area={DAMAGE_AREA_OPTIONS[2]}
-					selected={value.includes("LEFT_SIDE")}
-					onToggle={toggle}
-				/>
-				<svg
-					viewBox="0 0 120 64"
-					aria-hidden="true"
-					className="h-16 w-full text-muted-foreground"
-				>
-					<rect
-						x="30"
-						y="4"
-						width="60"
-						height="56"
-						rx="18"
-						fill="currentColor"
-						opacity="0.12"
-					/>
-					<path
-						d="M42 15h36l8 12v20H34V27l8-12Z"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="2"
-					/>
-					<path
-						d="M39 28h42M42 15l4 13M78 15l-4 13"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="2"
-					/>
-					<circle cx="42" cy="49" r="5" fill="currentColor" />
-					<circle cx="78" cy="49" r="5" fill="currentColor" />
-				</svg>
-				<DamageAreaButton
-					area={DAMAGE_AREA_OPTIONS[3]}
-					selected={value.includes("RIGHT_SIDE")}
-					onToggle={toggle}
-				/>
-			</div>
-			<div className="grid grid-cols-3 gap-2">
-				<DamageAreaButton
-					area={DAMAGE_AREA_OPTIONS[8]}
-					selected={value.includes("LEFT_WHEEL")}
-					onToggle={toggle}
-				/>
-				<DamageAreaButton
-					area={DAMAGE_AREA_OPTIONS[1]}
-					selected={value.includes("REAR")}
-					onToggle={toggle}
-				/>
-				<DamageAreaButton
-					area={DAMAGE_AREA_OPTIONS[9]}
-					selected={value.includes("RIGHT_WHEEL")}
-					onToggle={toggle}
-				/>
-			</div>
-			<div className="flex flex-wrap gap-2 border-t pt-2">
-				{DAMAGE_AREA_OPTIONS.slice(4, 8).map((area) => (
-					<DamageAreaButton
-						key={area.value}
-						area={area}
-						selected={value.includes(area.value)}
-						onToggle={toggle}
-					/>
-				))}
-			</div>
-		</div>
+		typeof point.x === "number" &&
+		typeof point.y === "number" &&
+		point.x >= 0 &&
+		point.x <= 100 &&
+		point.y >= 0 &&
+		point.y <= 100
 	);
 }
 
-function DamageAreaButton({
-	area,
-	selected,
-	onToggle,
-}: {
-	area: (typeof DAMAGE_AREA_OPTIONS)[number];
-	selected: boolean;
-	onToggle: (area: DamageArea) => void;
-}) {
-	return (
-		<button
-			type="button"
-			aria-pressed={selected}
-			onClick={() => onToggle(area.value)}
-			className="min-h-10 flex-1 rounded-md border bg-background px-2 py-2 text-sm transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
-		>
-			{area.label}
-		</button>
-	);
+function toApiDamageAnnotation(annotation: DamageAnnotationDraft) {
+	return {
+		view: annotation.view,
+		type: annotation.type,
+		severity: annotation.severity,
+		x: annotation.x,
+		y: annotation.y,
+		points: annotation.points,
+		description: annotation.description || null,
+	};
 }

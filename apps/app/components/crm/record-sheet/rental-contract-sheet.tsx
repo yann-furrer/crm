@@ -48,7 +48,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@crm/ui/components/select";
-import { SimpleTable, SimpleTableRow } from "@crm/ui/components/simple-table";
+import {
+	SimpleTable,
+	type SimpleTableColumn,
+	SimpleTableRow,
+} from "@crm/ui/components/simple-table";
 import { StatusIndicator } from "@crm/ui/components/status-indicator";
 import { TableCell } from "@crm/ui/components/table";
 import { Textarea } from "@crm/ui/components/textarea";
@@ -76,6 +80,8 @@ import { OwnerCell } from "@/components/crm/owner-cell";
 import { RentalStatusMenu } from "@/components/crm/status-change";
 import { StatusStepper } from "@/components/crm/status-stepper";
 import { Timeline } from "@/components/crm/timeline/timeline";
+import type { DamageAnnotationDraft } from "@/components/crm/vehicle-damage/vehicle-damage-editor";
+import { VehicleDamageEditor } from "@/components/crm/vehicle-damage/vehicle-damage-editor";
 import {
 	DetailSheetBody,
 	DetailSheetEmpty,
@@ -98,6 +104,12 @@ import { AddRow, MoneyAmount, RecordSheetFrame } from "./record-parts";
 import { useOpenRecord, useRecordSheetView } from "./record-stack";
 
 type RentalContract = RouterOutputs["rentalContracts"]["byId"];
+type ContractIncidentRow = {
+	id: string;
+	type: string;
+	description: string;
+	insuranceStatus: string;
+};
 
 const CURRENCY_OPTIONS = CURRENCIES.map((entry) => ({
 	value: entry.code,
@@ -136,13 +148,13 @@ const PAYMENT_STATUS_OPTIONS = [
 	{ value: "REFUNDED", label: "Remboursé" },
 ];
 
-const DRIVER_COLUMNS = [
+const DRIVER_COLUMNS: SimpleTableColumn[] = [
 	{ id: "name", header: "Nom", width: "w-[36%]", className: "pl-5" },
 	{ id: "role", header: "Rôle", width: "w-[28%]" },
 	{ id: "remove", srLabel: "Remove", width: "w-10" },
 ];
 
-const PAYMENT_COLUMNS = [
+const PAYMENT_COLUMNS: SimpleTableColumn[] = [
 	{ id: "type", header: "Type", width: "w-[20%]" },
 	{ id: "method", header: "Mode", width: "w-[18%]" },
 	{
@@ -156,7 +168,7 @@ const PAYMENT_COLUMNS = [
 	{ id: "actions", srLabel: "Actions", width: "w-10" },
 ];
 
-const INCIDENT_COLUMNS = [
+const INCIDENT_COLUMNS: SimpleTableColumn[] = [
 	{ id: "type", header: "Type", width: "w-[16%]", className: "pl-5" },
 	{ id: "description", header: "Description", width: "w-[40%]" },
 	{ id: "insurance", header: "Assurance", width: "w-[18%]" },
@@ -1266,7 +1278,7 @@ function ContractIncidents({
 		}),
 	);
 
-	const rows = incidents.data ?? [];
+	const rows = (incidents.data ?? []) as unknown as ContractIncidentRow[];
 
 	const form = adding ? (
 		<ContractIncidentForm
@@ -1279,7 +1291,7 @@ function ContractIncidents({
 
 	if (!incidents.isPending && rows.length === 0) {
 		return (
-			<>
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 				{form}
 				{adding ? null : (
 					<DetailSheetEmpty
@@ -1298,12 +1310,12 @@ function ContractIncidents({
 						}
 					/>
 				)}
-			</>
+			</div>
 		);
 	}
 
 	return (
-		<>
+		<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 			{form}
 			<SimpleTable variant="panel" columns={INCIDENT_COLUMNS}>
 				{rows.map((incident) => (
@@ -1321,15 +1333,14 @@ function ContractIncidents({
 				))}
 			</SimpleTable>
 			{adding ? null : (
-				<button
-					type="button"
-					onClick={() => setAdding(true)}
-					className="w-full border-t px-5 py-2 text-left text-muted-foreground text-sm hover:text-foreground"
-				>
-					Signaler un incident
-				</button>
+				<div className="border-t p-3">
+					<Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+						<Icon icon={Add} data-icon="inline-start" />
+						Signaler un incident
+					</Button>
+				</div>
 			)}
-		</>
+		</div>
 	);
 }
 
@@ -1347,6 +1358,7 @@ function ContractIncidentForm({
 	const trpc = useTRPC();
 	const cache = useCrmCache();
 	const [description, setDescription] = useState("");
+	const [annotations, setAnnotations] = useState<DamageAnnotationDraft[]>([]);
 	const [depositOutcome, setDepositOutcome] = useState("NONE");
 	const [depositDeductedAmount, setDepositDeductedAmount] = useState("");
 	const [document, setDocument] = useState<File | null>(null);
@@ -1373,6 +1385,10 @@ function ContractIncidentForm({
 				? Math.round(Number(depositDeductedAmount) * 100)
 				: undefined,
 			depositCurrency: depositDeductedAmount ? depositCurrency : undefined,
+			damageAnnotations: annotations.map(({ id, ...annotation }) => ({
+				...annotation,
+				description: annotation.description || null,
+			})),
 		});
 
 		if (document) {
@@ -1427,6 +1443,10 @@ function ContractIncidentForm({
 					onChange={(event) => setDescription(event.target.value)}
 					rows={3}
 				/>
+			</Field>
+			<Field className="sm:col-span-2">
+				<FieldLabel>Localisation des dommages</FieldLabel>
+				<VehicleDamageEditor value={annotations} onChange={setAnnotations} />
 			</Field>
 			<Field>
 				<FieldLabel>Impact sur la caution</FieldLabel>

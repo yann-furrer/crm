@@ -1,4 +1,7 @@
 import {
+	IncidentDamageSeverity,
+	IncidentDamageType,
+	IncidentDamageView,
 	IncidentDepositOutcome,
 	IncidentDocumentType,
 	IncidentType,
@@ -33,6 +36,38 @@ const depositOutcomeEnum = z.enum(
 	],
 );
 
+const damageViewEnum = z.enum(
+	Object.values(IncidentDamageView) as [
+		IncidentDamageView,
+		...IncidentDamageView[],
+	],
+);
+const damageTypeEnum = z.enum(
+	Object.values(IncidentDamageType) as [
+		IncidentDamageType,
+		...IncidentDamageType[],
+	],
+);
+const damageSeverityEnum = z.enum(
+	Object.values(IncidentDamageSeverity) as [
+		IncidentDamageSeverity,
+		...IncidentDamageSeverity[],
+	],
+);
+const damagePoint = z.object({
+	x: z.number().min(0).max(100),
+	y: z.number().min(0).max(100),
+});
+const damageAnnotationInput = z.object({
+	view: damageViewEnum,
+	type: damageTypeEnum,
+	severity: damageSeverityEnum,
+	x: z.number().min(0).max(100),
+	y: z.number().min(0).max(100),
+	points: z.array(damagePoint).max(300).optional(),
+	description: z.string().trim().nullable().optional(),
+});
+
 export const damageAreaEnum = z.enum([
 	"FRONT",
 	"REAR",
@@ -65,6 +100,7 @@ export const incidentCreateInput = z.object({
 	type: typeEnum,
 	description: z.string().trim().min(1, "Describe what happened."),
 	damageAreas: z.array(damageAreaEnum).max(12).optional(),
+	damageAnnotations: z.array(damageAnnotationInput).max(100).optional(),
 	reportedAt: z.string().nullable().optional(),
 	responsibleParty: responsiblePartyEnum.optional(),
 	insuranceClaimNumber: z.string().trim().nullable().optional(),
@@ -79,6 +115,7 @@ export const incidentCreateInput = z.object({
 });
 
 export type IncidentCreateInput = z.infer<typeof incidentCreateInput>;
+export type DamageAnnotationInput = z.infer<typeof damageAnnotationInput>;
 
 const incidentUpdateInput = z.object({
 	description: z.string().trim().min(1, "Describe what happened.").optional(),
@@ -104,6 +141,14 @@ export const incidentUpdateArgs = z.object({
 });
 
 export const incidentIdInput = z.object({ id: z.string() });
+
+export const damageAnnotationCreateInput = damageAnnotationInput.extend({
+	incidentId: z.string().min(1),
+});
+export const damageAnnotationUpdateArgs = z.object({
+	id: z.string(),
+	data: damageAnnotationInput,
+});
 
 export const incidentDocumentMetaInput = z.object({
 	type: incidentDocumentTypeEnum,

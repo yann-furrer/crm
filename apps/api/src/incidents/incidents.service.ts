@@ -16,6 +16,7 @@ import {
 import { decimalFromCents, parseDate, toCents } from "../crm/values";
 import { InjectDatabase } from "../database/database.constants";
 import type {
+	DamageAnnotationInput,
 	IncidentCreateInput,
 	IncidentDocumentMetaInput,
 	IncidentUpdateInput,
@@ -37,6 +38,9 @@ const SELECT = {
 	reportedBy: { select: REPORTED_BY_SELECT },
 	description: true,
 	damageAreas: true,
+	damageAnnotations: {
+		orderBy: { createdAt: "asc" },
+	},
 	responsibleParty: true,
 	insuranceClaimNumber: true,
 	insuranceStatus: true,
@@ -156,6 +160,9 @@ export class IncidentsService {
 						reportedById,
 						description: input.description.trim(),
 						damageAreas: input.damageAreas ?? [],
+						damageAnnotations: input.damageAnnotations?.length
+							? { create: input.damageAnnotations.map(toDamageAnnotationData) }
+							: undefined,
 						responsibleParty:
 							input.responsibleParty ?? ResponsibleParty.UNKNOWN,
 						insuranceClaimNumber: input.insuranceClaimNumber ?? null,
@@ -257,6 +264,43 @@ export class IncidentsService {
 		return { id };
 	}
 
+	async createDamageAnnotation(
+		input: DamageAnnotationInput & { incidentId: string },
+	) {
+		try {
+			return await this.db.incidentDamageAnnotation.create({
+				data: {
+					incidentId: input.incidentId,
+					...toDamageAnnotationData(input),
+				},
+				select: { id: true },
+			});
+		} catch (error) {
+			throw this.translate(error, input.incidentId);
+		}
+	}
+
+	async updateDamageAnnotation(id: string, input: DamageAnnotationInput) {
+		try {
+			return await this.db.incidentDamageAnnotation.update({
+				where: { id },
+				data: toDamageAnnotationData(input),
+				select: { id: true },
+			});
+		} catch (error) {
+			throw this.translate(error, id);
+		}
+	}
+
+	async deleteDamageAnnotation(id: string): Promise<{ id: string }> {
+		try {
+			await this.db.incidentDamageAnnotation.delete({ where: { id } });
+		} catch (error) {
+			throw this.translate(error, id);
+		}
+		return { id };
+	}
+
 	async uploadDocument(
 		incidentId: string,
 		file: {
@@ -314,6 +358,18 @@ export class IncidentsService {
 		}
 		return error;
 	}
+}
+
+function toDamageAnnotationData(input: DamageAnnotationInput) {
+	return {
+		view: input.view,
+		type: input.type,
+		severity: input.severity,
+		x: input.x,
+		y: input.y,
+		points: input.points ?? [],
+		description: input.description ?? null,
+	};
 }
 
 type IncidentRow = Prisma.IncidentGetPayload<{ select: typeof SELECT }>;
